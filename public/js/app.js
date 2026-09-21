@@ -328,7 +328,14 @@ function setupFooter() {
   const links = [];
   if (config.repoUrl) links.push(el('a', { href: config.repoUrl, rel: 'noopener' }, 'Source on GitHub'));
   links.push(el('a', { href: config.repoUrl ? `${config.repoUrl}/blob/main/LICENSE` : 'LICENSE', rel: 'noopener' }, 'MIT License'));
-  if (config.coffeeUrl) links.push(el('a', { href: config.coffeeUrl, rel: 'noopener', class: 'coffee' }, '☕ Buy me a coffee'));
+  if (config.coffeeUrl) {
+    links.push(el('a', { href: config.coffeeUrl, rel: 'noopener', target: '_blank', class: 'coffee' }, '☕ Buy me a coffee'));
+    // A plain link styled as a button: no third-party script, nothing loads from Buy Me a Coffee.
+    const button = document.getElementById('coffee-button');
+    button.href = config.coffeeUrl;
+    button.setAttribute('aria-label', 'Buy me a coffee (opens in a new tab)');
+    button.classList.remove('hidden');
+  }
   const box = document.getElementById('footer-links');
   links.forEach((a, i) => { if (i) box.append(' · '); box.append(a); });
 }
