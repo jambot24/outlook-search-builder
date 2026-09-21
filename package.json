@@ -1,0 +1,12 @@
+{
+  "name": "outlook-search-builder",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Build Outlook search queries for Classic, new Outlook, Mac and mobile.",
+  "scripts": {
+    "test": "node --test --experimental-test-coverage tests/",
+    "serve": "npx --yes serve -l 8788 ."
+  },
+  "license": "MIT"
+}

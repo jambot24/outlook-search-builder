@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Outlook Search Builder</title>
+  <meta name="description" content="Build Outlook search queries that work in Outlook Classic, new Outlook, Outlook on the web, Outlook for Mac and Outlook mobile. Save them in your browser or export them.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f6cbd'/%3E%3Ccircle cx='14' cy='14' r='7' fill='none' stroke='white' stroke-width='3'/%3E%3Cpath d='M19 19l6 6' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Outlook Search Builder</h1>
+      <p>Fill in what you're looking for. Copy the query for your version of Outlook and paste it into the search box.</p>
+    </div>
+    <div class="account" id="account">
+      <span id="account-status" class="hidden"></span>
+      <button id="sign-in" class="hidden" title="Optional. Lists your mail folders so you can pick one.">Sign in with Microsoft</button>
+      <button id="sign-out" class="link hidden">Sign out</button>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <form class="panel" id="builder" autocomplete="off">
+        <h2>Search criteria</h2>
+
+        <h3>Words</h3>
+        <div class="grid">
+          <label class="field">All of these words
+            <input type="text" name="allWords" placeholder="invoice overdue">
+          </label>
+          <label class="field">This exact phrase
+            <input type="text" name="phrase" placeholder="quarterly report">
+          </label>
+          <label class="field">Any of these words
+            <input type="text" name="anyWords" placeholder="contract agreement">
+          </label>
+          <label class="field">None of these words
+            <input type="text" name="noneWords" placeholder="newsletter unsubscribe">
+          </label>
+        </div>
+
+        <h3>People</h3>
+        <p class="muted">Names or email addresses. Separate several with commas; any of them will match.</p>
+        <div class="grid">
+          <label class="field">From <input type="text" name="from" placeholder="jane@contoso.com"></label>
+          <label class="field">To <input type="text" name="to"></label>
+          <label class="field">Cc <input type="text" name="cc"></label>
+          <label class="field">Bcc <input type="text" name="bcc"></label>
+          <label class="field">Anywhere in From/To/Cc <input type="text" name="participants"></label>
+        </div>
+
+        <h3>Subject, body and attachments</h3>
+        <div class="grid">
+          <label class="field">Subject contains <input type="text" name="subject"></label>
+          <label class="field">Body contains <input type="text" name="body"></label>
+          <label class="field">Attachment name contains <input type="text" name="attachmentName" placeholder="report.pdf"></label>
+          <label class="field">Attachments
+            <select name="hasAttachments">
+              <option value="">Doesn't matter</option>
+              <option value="yes">Has attachments</option>
+              <option value="no">No attachments</option>
+            </select>
+          </label>
+        </div>
+
+        <h3>Date</h3>
+        <div class="grid">
+          <label class="field">Date type
+            <select name="dateField">
+              <option value="received">Received</option>
+              <option value="sent">Sent</option>
+            </select>
+          </label>
+          <label class="field">When
+            <select name="dateMode">
+              <option value="">Any time</option>
+              <option value="preset">Relative (today, last week…)</option>
+              <option value="on">On a date</option>
+              <option value="after">On or after</option>
+              <option value="before">Before</option>
+              <option value="between">Between</option>
+            </select>
+          </label>
+          <label class="field" data-show="preset">Period
+            <select name="datePreset">
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="this week">This week</option>
+              <option value="last week">Last week</option>
+              <option value="this month">This month</option>
+              <option value="last month">Last month</option>
+              <option value="this year">This year</option>
+              <option value="last year">Last year</option>
+            </select>
+          </label>
+          <label class="field" data-show="on after before between">Date
+            <input type="date" name="date1">
+          </label>
+          <label class="field" data-show="between">And
+            <input type="date" name="date2">
+          </label>
+          <label class="field" data-show="on after before between">Date format
+            <select name="dateFormat">
+              <option value="mdy">MM/DD/YYYY (US)</option>
+              <option value="dmy">DD/MM/YYYY (UK, EU, AU)</option>
+              <option value="iso">YYYY-MM-DD</option>
+            </select>
+            <span class="hint">Applies to Outlook Classic, which reads dates in your Windows regional format. The other versions always use MM/DD/YYYY.</span>
+          </label>
+        </div>
+
+        <h3>Status</h3>
+        <div class="grid">
+          <label class="field">Read status
+            <select name="read">
+              <option value="">Doesn't matter</option>
+              <option value="no">Unread</option>
+              <option value="yes">Read</option>
+            </select>
+          </label>
+          <label class="field">Flagged
+            <select name="flagged">
+              <option value="">Doesn't matter</option>
+              <option value="yes">Flagged</option>
+            </select>
+          </label>
+          <label class="field">Importance
+            <select name="importance">
+              <option value="">Doesn't matter</option>
+              <option value="high">High</option>
+              <option value="normal">Normal</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <label class="field">Category <input type="text" name="category" placeholder="Red category"></label>
+          <label class="field">Size
+            <div class="inline">
+              <select name="sizeOp">
+                <option value="">Any size</option>
+                <option value=">">Larger than</option>
+                <option value="<">Smaller than</option>
+              </select>
+              <input type="number" name="sizeMb" min="0" step="0.1" placeholder="MB">
+            </div>
+          </label>
+        </div>
+
+        <h3>Folder</h3>
+        <div class="grid">
+          <label class="field">Folder name
+            <input type="text" name="folder" list="folder-options" placeholder="Inbox">
+            <datalist id="folder-options"></datalist>
+            <span class="hint" id="folder-hint">Type a folder name, or sign in (top right) to pick from your folders.</span>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button type="button" id="clear-form">Clear form</button>
+          <button type="button" id="share">Copy share link</button>
+        </div>
+      </form>
+
+      <div class="panel">
+        <h2>Save this search</h2>
+        <div class="inline">
+          <input type="text" id="save-name" placeholder="Name, e.g. Unpaid invoices from Contoso" maxlength="120">
+          <button type="button" id="save" class="primary fixed">Save</button>
+        </div>
+        <p class="muted">Saved searches stay in this browser only. Export them to move them to another browser or share them.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="panel">
+        <h2>Your queries</h2>
+        <div id="outputs"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Saved searches</h2>
+        <ul class="saved-list" id="saved"></ul>
+        <p class="muted" id="saved-empty">Nothing saved yet.</p>
+        <div class="actions">
+          <button type="button" id="export-json">Export JSON</button>
+          <button type="button" id="export-csv">Export CSV</button>
+          <button type="button" id="import">Import JSON</button>
+          <input type="file" id="import-file" accept=".json,application/json" class="hidden">
+        </div>
+      </div>
+
+      <div class="panel">
+        <details class="help">
+          <summary>Where to paste the query</summary>
+          <ul>
+            <li><strong>Outlook Classic (Windows):</strong> click the search box above the message list, paste, press Enter. Use the scope dropdown next to the box for "Current folder", "All mailboxes" and so on.</li>
+            <li><strong>New Outlook and Outlook on the web:</strong> paste into the search box at the top of the window.</li>
+            <li><strong>Outlook for Mac:</strong> paste into the search box at the top of the window.</li>
+            <li><strong>Outlook mobile (iPhone, iPad, Android):</strong> tap Search, paste the query, then tap the search key.</li>
+          </ul>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Everything runs in your browser. Searches you save are stored on this device and are never sent to a server.
+    Signing in is optional and only reads your mail folder names.
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/config.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
