@@ -16,7 +16,7 @@ export class ValidationError extends Error {}
 const ENUMS = {
   hasAttachments: ['yes', 'no'],
   dateField: ['received', 'sent'],
-  dateMode: ['preset', 'on', 'after', 'before', 'between', 'older', 'within'],
+  dateMode: ['preset', 'on', 'after', 'before', 'between', 'older', 'within', 'ago'],
   datePreset: ['today', 'yesterday', 'this week', 'last week', 'this month', 'last month', 'this year', 'last year'],
   read: ['yes', 'no'],
   flagged: ['yes'],
@@ -54,10 +54,11 @@ export function validateCriteria(input) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(raw[key])) throw new ValidationError(`Invalid ${key}.`);
     out[key] = raw[key];
   }
-  if (raw.days !== undefined && raw.days !== '') {
-    const days = Number(raw.days);
-    if (!Number.isInteger(days) || days < 1 || days > 3650) throw new ValidationError('Invalid number of days.');
-    out.days = String(days);
+  for (const key of ['days', 'days2']) {
+    if (raw[key] === undefined || raw[key] === '') continue;
+    const days = Number(raw[key]);
+    if (!Number.isInteger(days) || days < 0 || days > 3650) throw new ValidationError('Invalid number of days.');
+    out[key] = String(days);
   }
   if (raw.fileTypes) {
     const types = parseFileTypes(raw.fileTypes);
@@ -74,7 +75,8 @@ export function validateCriteria(input) {
   if (out.dateField === 'received') delete out.dateField;
   if (out.dateMode && out.dateMode !== 'preset') delete out.datePreset;
   if (out.dateMode === 'preset') { delete out.date1; delete out.date2; }
-  if (out.dateMode === 'older' || out.dateMode === 'within') { delete out.date1; delete out.date2; } else delete out.days;
+  if (['older', 'within', 'ago'].includes(out.dateMode)) { delete out.date1; delete out.date2; } else delete out.days;
+  if (out.dateMode !== 'ago') delete out.days2;
   if (out.dateMode && out.dateMode !== 'between') delete out.date2;
   if (!out.sizeOp || out.sizeMb === undefined) { delete out.sizeOp; delete out.sizeMb; }
 

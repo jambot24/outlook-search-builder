@@ -64,6 +64,10 @@ function classicSteps(c, now) {
   } else if (c.dateMode === 'older' && Number(c.days) > 0) {
     advanced.push(`${Field} · on or before · ${us(isoDaysAgo(Number(c.days) + 1, now))}`);
     notes.push('This date is fixed. For a rolling "older than" folder, use the ready-made "Old mail" search folder instead.');
+  } else if (c.dateMode === 'ago' && c.days !== undefined && c.days2 !== undefined) {
+    const [a, b] = [Number(c.days), Number(c.days2)].sort((x, y) => x - y);
+    advanced.push(`${Field} · between · ${us(isoDaysAgo(b, now))} and ${us(isoDaysAgo(a, now))}`);
+    notes.push('These dates are fixed, so the folder will not keep a rolling window.');
   } else if (c.dateMode === 'on' && c.date1) {
     advanced.push(`${Field} · on · ${us(c.date1)}`);
   } else if (c.dateMode === 'after' && c.date1) {

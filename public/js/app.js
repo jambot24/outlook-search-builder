@@ -1,4 +1,4 @@
-import { CLIENTS, COMMON_FOLDERS, renderAll, renderQueries } from './query.js';
+import { CLIENTS, COMMON_FOLDERS, renderAll, renderQueries, dateHint } from './query.js';
 import {
   loadSaved, persistSaved, createEntry, upsertEntry, removeEntry,
   toExportJson, toExportCsv, mergeImport, sanitizeCriteria,
@@ -100,6 +100,10 @@ function refresh() {
   enhanced.forEach((f) => f.sync());
   const criteria = readCriteria();
   renderOutputs(criteria);
+  const hint = dateHint(criteria);
+  const hintEl = document.getElementById('date-hint');
+  hintEl.textContent = hint;
+  hintEl.classList.toggle('hidden', !hint);
   const what = explain(criteria);
   document.getElementById('explain').textContent = what || 'Fill in the form and this will say, in plain English, what the search finds.';
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(criteria)); } catch { /* private mode */ }

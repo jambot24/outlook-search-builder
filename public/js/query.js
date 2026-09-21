@@ -169,6 +169,30 @@ function isoLocal(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// Which engines keep a period as a relative word, so a copied or saved query stays current.
+export function evergreenSupport(preset) {
+  return { classic: PRESETS_DOCUMENTED.classic.has(preset), modern: PRESETS_DOCUMENTED.modern.has(preset) };
+}
+
+// A one-line explanation for the date field: does this choice stay current once copied?
+export function dateHint(c, now = new Date()) {
+  const mode = c?.dateMode || '';
+  if (mode === 'preset') {
+    const preset = String(c.datePreset || 'today');
+    const { classic, modern } = evergreenSupport(preset);
+    const name = preset.charAt(0).toUpperCase() + preset.slice(1);
+    if (classic && modern) return `"${name}" stays relative in every version, so the query never goes out of date.`;
+    const range = presetRange(preset, now);
+    const dates = range ? ` (${formatDate(range[0], 'mm/dd')} to ${formatDate(range[1], 'mm/dd')})` : '';
+    if (classic) return `"${name}" stays relative in Outlook Classic. New Outlook, the web and Mac do not document it, so they get exact dates${dates}. Saved searches recalculate them.`;
+    return `Microsoft does not document "${preset}" in any version, so the query uses exact dates${dates}. Saved searches recalculate them.`;
+  }
+  if (mode === 'within' || mode === 'older' || mode === 'ago') {
+    return 'Outlook has no word for a number of days, so this is written as a date. Saved searches recalculate it. For a query that never goes out of date, pick a relative period instead.';
+  }
+  return '';
+}
+
 // First and last day of a named period, in the user's local calendar.
 export function presetRange(preset, now = new Date()) {
   const y = now.getFullYear();
@@ -210,6 +234,18 @@ function dateParts(c, engine, warn, note, now) {
     if (!range) return [`${field}:${quote(preset)}`];
     note(`"${preset}" is written as dates (${formatDate(range[0], fmt)} to ${formatDate(range[1], fmt)}) because this Outlook does not understand the phrase. Saved searches recalculate it.`);
     return [rangeTerms(field, engine, fmt, range[0], range[1])];
+  }
+
+  if (mode === 'ago') {
+    let a = Number(c.days);
+    let b = Number(c.days2);
+    if (![a, b].every((n) => Number.isInteger(n) && n >= 0 && n <= MAX_DAYS)) {
+      warn('Enter both numbers of days to include the date filter.');
+      return [];
+    }
+    if (a > b) [a, b] = [b, a];
+    note(`"${a} to ${b} days ago" is written as dates, so a saved search recalculates it.`);
+    return [rangeTerms(field, engine, fmt, daysAgo(b, now), daysAgo(a, now))];
   }
 
   if (mode === 'older' || mode === 'within') {

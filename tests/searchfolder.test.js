@@ -28,6 +28,7 @@ test('classic dates outside the Time list go to the Advanced tab with a fixed-da
   assert.match(searchFolderSteps('classic', { dateMode: 'within', days: '3' }, { now }).steps.join(' '), /on or after · 9\/18\/2026/);
   assert.match(searchFolderSteps('classic', { dateMode: 'between', date1: '2026-03-01', date2: '2026-01-01' }, { now }).steps.join(' '), /between · 1\/1\/2026 and 3\/1\/2026/);
   assert.match(searchFolderSteps('classic', { dateMode: 'on', date1: '2026-03-01' }).steps.join(' '), /on · 3\/1\/2026/);
+  assert.match(searchFolderSteps('classic', { dateMode: 'ago', days: '7', days2: '14' }, { now }).steps.join(' '), /between · 9\/7\/2026 and 9\/14\/2026/);
   assert.match(searchFolderSteps('classic', { dateMode: 'after', date1: '2026-03-01' }).steps.join(' '), /on or after · 3\/1\/2026/);
   assert.match(searchFolderSteps('classic', { dateMode: 'before', date1: '2026-03-01' }).steps.join(' '), /before · 3\/1\/2026/);
 });

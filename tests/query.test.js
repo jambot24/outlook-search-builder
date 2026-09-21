@@ -235,3 +235,22 @@ test('file types become attachment name terms plus hasattachment', () => {
   assert.equal(m.query, 'attachment:pdf AND hasattachment:yes');
   assert.equal(m.warnings.length, 2);
 });
+
+test('date hint says whether a choice stays evergreen', async () => {
+  const { dateHint, evergreenSupport } = await import('../public/js/query.js');
+  const now = new Date(2026, 8, 21);
+  assert.deepEqual(evergreenSupport('last week'), { classic: true, modern: true });
+  assert.match(dateHint({ dateMode: 'preset', datePreset: 'last week' }, now), /every version/);
+  assert.match(dateHint({ dateMode: 'preset', datePreset: 'last month' }, now), /relative in Outlook Classic.*08\/01\/2026 to 08\/31\/2026/);
+  assert.match(dateHint({ dateMode: 'preset', datePreset: 'this month' }, now), /any version.*09\/01\/2026 to 09\/30\/2026/);
+  assert.match(dateHint({ dateMode: 'older', days: '30' }, now), /no word for a number of days/);
+  assert.equal(dateHint({ dateMode: 'on' }, now), '');
+  assert.equal(dateHint(null, now), '');
+});
+
+test('between N and M days ago is a date range in either order', () => {
+  const now = new Date(2026, 8, 21);
+  assert.equal(render('modern', { dateMode: 'ago', days: '7', days2: '14' }, { now }).query, 'received:09/07/2026..09/14/2026');
+  assert.equal(render('classic', { dateMode: 'ago', days: '14', days2: '7' }, { now }).query, 'received:>=9/7/2026 AND received:<=9/14/2026');
+  assert.equal(render('modern', { dateMode: 'ago', days: '7' }, { now }).query, '');
+});

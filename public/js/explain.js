@@ -35,6 +35,10 @@ function datePhrase(c) {
     case 'before': return d1 ? `${verb} before ${d1}` : '';
     case 'older': return Number(c.days) > 0 ? `${verb} more than ${Number(c.days)} days ago` : '';
     case 'within': return Number(c.days) > 0 ? `${verb} in the last ${Number(c.days)} days` : '';
+    case 'ago': {
+      const [a, b] = [Number(c.days), Number(c.days2)].sort((x, y) => x - y);
+      return Number.isFinite(a) && Number.isFinite(b) && c.days !== undefined && c.days2 !== undefined ? `${verb} between ${a} and ${b} days ago` : '';
+    }
     case 'between': {
       if (!d1 || !d2) return '';
       const [a, b] = c.date1 <= c.date2 ? [d1, d2] : [d2, d1];

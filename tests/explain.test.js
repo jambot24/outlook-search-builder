@@ -48,3 +48,7 @@ test('file types and phrases are described', () => {
   assert.equal(explain({ fileTypes: 'pdf,word' }), 'Finds messages with PDF or Word attachments.');
   assert.equal(explain({ anyWords: 'unsubscribe "opt out"' }), 'Finds messages mentioning "unsubscribe" or "opt out".');
 });
+
+test('days-ago window is described', () => {
+  assert.equal(explain({ dateMode: 'ago', days: '14', days2: '7' }), 'Finds messages received between 7 and 14 days ago.');
+});
