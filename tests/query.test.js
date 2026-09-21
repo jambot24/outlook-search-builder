@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderAll, render, formatDate, quote, splitList, CLIENTS } from '../js/query.js';
+import { renderAll, render, formatDate, quote, splitList, wildcard, CLIENTS } from '../public/js/query.js';
 
 test('empty criteria produce empty queries and no warnings', () => {
   const out = renderAll({});
@@ -137,6 +137,20 @@ test('folder is never part of the query; it becomes a scope instruction', () => 
   }
 });
 
+test('folder defaults to Inbox and All folders uses the whole-mailbox scope', () => {
+  assert.match(render('classic', { subject: 'x' }).scope, /"Inbox".*Current Folder/);
+  assert.match(render('classic', { subject: 'x', folder: 'All folders' }).scope, /Current Mailbox/);
+  assert.match(render('modern', { subject: 'x', folder: 'all folders' }).scope, /All folders/);
+  assert.equal(render('modern', {}).scope, '');
+});
+
+test('include deleted items adds the per-client setting, except when searching Deleted Items', () => {
+  assert.match(render('classic', { subject: 'x', includeDeleted: 'yes' }).scope, /File > Options > Search/);
+  assert.match(render('modern', { subject: 'x', includeDeleted: 'yes' }).scope, /Include deleted items/);
+  assert.match(render('mobile', { subject: 'x', includeDeleted: 'yes' }).scope, /no setting/);
+  assert.doesNotMatch(render('modern', { subject: 'x', folder: 'Deleted Items', includeDeleted: 'yes' }).scope, /Settings/);
+});
+
 test('mobile gets the modern query plus a plain keyword fallback', () => {
   const r = render('mobile', { from: 'jane', allWords: 'invoice', phrase: 'past due' });
   assert.equal(r.query, 'invoice AND "past due" AND from:jane');
@@ -146,4 +160,37 @@ test('mobile gets the modern query plus a plain keyword fallback', () => {
 
 test('unknown client throws', () => {
   assert.throws(() => render('lotus', {}), /Unknown client/);
+});
+
+test('wildcard keeps a trailing * on modern and drops it on classic', () => {
+  const warnings = [];
+  assert.equal(wildcard('migrat*', 'modern'), 'migrat*');
+  assert.equal(wildcard('migrat*', 'classic', (w) => warnings.push(w)), 'migrat');
+  assert.equal(warnings.length, 1);
+});
+
+test('wildcard removes leading and mid-word asterisks with a warning', () => {
+  const warnings = [];
+  assert.equal(wildcard('*grat*', 'modern', (w) => warnings.push(w)), 'grat*');
+  assert.equal(wildcard('mi*grat', 'modern', (w) => warnings.push(w)), 'migrat');
+  assert.equal(wildcard('***', 'modern', (w) => warnings.push(w)), '');
+  assert.equal(warnings.length, 2);
+});
+
+test('wildcards apply to words and single-word fields', () => {
+  const c = { allWords: 'migrat*', subject: 'renew*', from: 'jan*' };
+  assert.equal(render('modern', c).query, 'migrat* AND from:jan* AND subject:renew*');
+  const classic = render('classic', c);
+  assert.equal(classic.query, 'migrat AND from:jan AND subject:renew');
+  assert.equal(classic.warnings.length, 1);
+});
+
+test('wildcards are stripped from quoted phrases with a warning', () => {
+  const r = render('modern', { subject: 'project upd*', phrase: 'change contr*' });
+  assert.equal(r.query, '"change control" AND subject:"project upd"'.replace('control', 'contr'));
+  assert.equal(r.warnings.length, 1);
+});
+
+test('mobile fallback has no asterisks', () => {
+  assert.equal(render('mobile', { allWords: 'migrat*' }).fallback, 'migrat');
 });

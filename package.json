@@ -6,7 +6,10 @@
   "description": "Build Outlook search queries for Classic, new Outlook, Mac and mobile.",
   "scripts": {
     "test": "node --test --experimental-test-coverage tests/",
-    "serve": "npx --yes serve -l 8788 ."
+    "serve": "npx --yes serve -l 8788 public"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^4.86.0"
+  }
 }

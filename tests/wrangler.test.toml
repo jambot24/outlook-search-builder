@@ -1,0 +1,8 @@
+# Local-only config for tests: a throwaway D1 database run by wrangler's platform proxy.
+name = "outlook-search-builder-test"
+compatibility_date = "2026-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "test"
+database_id = "00000000-0000-0000-0000-000000000000"

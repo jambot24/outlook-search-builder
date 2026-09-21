@@ -1,9 +1,13 @@
-import { CLIENTS, renderAll, renderQueries } from './query.js';
+import { CLIENTS, COMMON_FOLDERS, renderAll, renderQueries } from './query.js';
 import {
   loadSaved, persistSaved, createEntry, upsertEntry, removeEntry,
   toExportJson, toExportCsv, mergeImport, sanitizeCriteria,
 } from './storage.js';
 import * as graph from './graph.js';
+import { createLibrary } from './community.js';
+import { explain } from './explain.js';
+import { CATEGORIES } from './library.js';
+import { DESCRIPTION_MAX_LENGTH, el } from './dom.js';
 
 const DRAFT_KEY = 'osb.draft.v1';
 const TOAST_MS = 2200;
@@ -16,13 +20,17 @@ const savedEmpty = document.getElementById('saved-empty');
 const toastEl = document.getElementById('toast');
 
 let saved = loadSaved(localStorage);
+let account = null;
+let library = null;
 
 // ---------- form state ----------
 
 function readCriteria() {
   const out = {};
   for (const el of form.elements) {
-    if (el.name && el.value !== '') out[el.name] = el.value;
+    if (!el.name || el.value === '') continue;
+    if (el.type === 'checkbox' && !el.checked) continue;
+    out[el.name] = el.value;
   }
   return out;
 }
@@ -31,7 +39,8 @@ function writeCriteria(criteria) {
   form.reset();
   for (const [name, value] of Object.entries(criteria || {})) {
     const el = form.elements.namedItem(name);
-    if (el && 'value' in el) el.value = value;
+    if (el?.type === 'checkbox') el.checked = el.value === value;
+    else if (el && 'value' in el) el.value = value;
   }
   refresh();
 }
@@ -44,17 +53,6 @@ function toggleDateFields() {
 }
 
 // ---------- output ----------
-
-function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') node.className = v;
-    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
-    else node.setAttribute(k, v);
-  }
-  for (const c of children) if (c != null) node.append(c);
-  return node;
-}
 
 function renderOutputs(criteria) {
   const all = renderAll(criteria);
@@ -79,6 +77,8 @@ function refresh() {
   toggleDateFields();
   const criteria = readCriteria();
   renderOutputs(criteria);
+  const what = explain(criteria);
+  document.getElementById('explain').textContent = what || 'Fill in the form and this will say, in plain English, what the search finds.';
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(criteria)); } catch { /* private mode */ }
 }
 
@@ -104,7 +104,7 @@ function commit(list) {
 function saveCurrent() {
   const nameInput = document.getElementById('save-name');
   const criteria = readCriteria();
-  if (Object.keys(criteria).filter((k) => !['dateField', 'dateFormat', 'datePreset'].includes(k)).length === 0) {
+  if (Object.keys(criteria).filter((k) => !['dateField', 'dateFormat', 'datePreset', 'folder', 'includeDeleted'].includes(k)).length === 0) {
     toast('Fill in the form before saving.');
     return;
   }
@@ -172,47 +172,52 @@ function decodeShare(token) {
 
 function shareLink() {
   const criteria = readCriteria();
-  // The folder name is personal to the sender's mailbox, so it is not shared.
-  delete criteria.folder;
+  // A custom folder name is personal to the sender's mailbox, so only standard folders are shared.
+  if (!COMMON_FOLDERS.includes(criteria.folder)) delete criteria.folder;
   const url = `${location.origin}${location.pathname}#q=${encodeShare(criteria)}`;
   copy(url, 'Share link copied');
 }
 
 // ---------- sign-in (optional) ----------
 
+const signInBtn = document.getElementById('sign-in');
+const signOutBtn = document.getElementById('sign-out');
+const accountStatus = document.getElementById('account-status');
+const loadFoldersBtn = document.getElementById('load-folders');
+
+function showAccount(next) {
+  account = next;
+  signInBtn.classList.toggle('hidden', Boolean(account));
+  signOutBtn.classList.toggle('hidden', !account);
+  accountStatus.classList.toggle('hidden', !account);
+  accountStatus.textContent = account ? account.username : '';
+  loadFoldersBtn.classList.toggle('hidden', !account);
+  library?.reload();
+}
+
+async function signIn() {
+  try {
+    showAccount(await graph.signIn(config));
+  } catch (err) {
+    if (!/user_cancelled/.test(err.errorCode || err.message)) toast(`Sign-in failed: ${err.message}`);
+  }
+}
+
 async function setupSignIn() {
   if (!graph.isConfigured(config)) return;
-  const signInBtn = document.getElementById('sign-in');
-  const signOutBtn = document.getElementById('sign-out');
-  const status = document.getElementById('account-status');
-
-  const show = (account) => {
-    signInBtn.classList.toggle('hidden', Boolean(account));
-    signOutBtn.classList.toggle('hidden', !account);
-    status.classList.toggle('hidden', !account);
-    status.textContent = account ? account.username : '';
-  };
-
-  signInBtn.addEventListener('click', async () => {
-    try {
-      show(await graph.signIn(config));
-      await loadFolders();
-    } catch (err) {
-      if (!/user_cancelled/.test(err.errorCode || err.message)) toast(`Sign-in failed: ${err.message}`);
-    }
-  });
+  signInBtn.addEventListener('click', signIn);
   signOutBtn.addEventListener('click', async () => {
     await graph.signOut(config);
-    document.getElementById('folder-options').replaceChildren();
-    document.getElementById('folder-hint').textContent = 'Type a folder name, or sign in (top right) to pick from your folders.';
-    show(null);
+    fillCommonFolders();
+    document.getElementById('folder-hint').textContent = 'Inbox unless you pick another. Choose All folders to search everything.';
+    showAccount(null);
   });
-
-  show(null);
+  loadFoldersBtn.addEventListener('click', loadFolders);
+  showAccount(null);
   try {
-    const account = await graph.currentAccount(config);
-    if (account) { show(account); await loadFolders(); }
-  } catch { show(null); }
+    const existing = await graph.currentAccount(config);
+    if (existing) showAccount(existing);
+  } catch { showAccount(null); }
 }
 
 async function loadFolders() {
@@ -220,11 +225,77 @@ async function loadFolders() {
   hint.textContent = 'Loading your folders…';
   try {
     const folders = await graph.listFolders(config);
-    document.getElementById('folder-options').replaceChildren(...folders.map((f) => el('option', { value: f.path })));
+    const names = [...COMMON_FOLDERS, ...folders.map((f) => f.path).filter((p) => !COMMON_FOLDERS.includes(p))];
+    document.getElementById('folder-options').replaceChildren(...names.map((n) => el('option', { value: n })));
     hint.textContent = `${folders.length} folders loaded. Start typing to pick one.`;
   } catch (err) {
     hint.textContent = err.message;
   }
+}
+
+// ---------- community ----------
+
+function setupCommunity() {
+  library = createLibrary({
+    config,
+    root: document.getElementById('library'),
+    toast,
+    getCriteria: readCriteria,
+    isSignedIn: () => Boolean(account),
+    requestSignIn: signIn,
+    onUse: (item) => {
+      writeCriteria(item.criteria);
+      document.getElementById('outputs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      toast(`Loaded "${item.title}"`);
+    },
+  });
+
+  const category = document.getElementById('share-category');
+  category.replaceChildren(el('option', { value: '' }, 'Pick a category'), ...CATEGORIES.map((c) => el('option', { value: c.key }, c.label)));
+  const desc = document.getElementById('share-description');
+  const count = document.getElementById('share-count');
+  desc.maxLength = DESCRIPTION_MAX_LENGTH;
+  desc.addEventListener('input', () => { count.textContent = `${desc.value.length}/${DESCRIPTION_MAX_LENGTH}`; });
+
+  const shareBtn = document.getElementById('share-community');
+  if (!library.communityEnabled) {
+    shareBtn.disabled = true;
+    document.getElementById('share-note').textContent = 'Community sharing is not switched on yet.';
+    return;
+  }
+  shareBtn.addEventListener('click', async () => {
+    shareBtn.disabled = true;
+    try {
+      const result = await library.share({
+        title: document.getElementById('save-name').value,
+        category: category.value,
+        description: desc.value,
+      });
+      if (result) {
+        toast('Shared with the community. Thank you.');
+        desc.value = '';
+        count.textContent = `0/${DESCRIPTION_MAX_LENGTH}`;
+        document.getElementById('library').scrollIntoView({ behavior: 'smooth' });
+      }
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      shareBtn.disabled = false;
+    }
+  });
+}
+
+function setupFooter() {
+  const links = [];
+  if (config.repoUrl) links.push(el('a', { href: config.repoUrl, rel: 'noopener' }, 'Source on GitHub'));
+  links.push(el('a', { href: config.repoUrl ? `${config.repoUrl}/blob/main/LICENSE` : 'LICENSE', rel: 'noopener' }, 'MIT License'));
+  if (config.coffeeUrl) links.push(el('a', { href: config.coffeeUrl, rel: 'noopener', class: 'coffee' }, '☕ Buy me a coffee'));
+  const box = document.getElementById('footer-links');
+  links.forEach((a, i) => { if (i) box.append(' · '); box.append(a); });
+}
+
+function fillCommonFolders() {
+  document.getElementById('folder-options').replaceChildren(...COMMON_FOLDERS.map((n) => el('option', { value: n })));
 }
 
 // ---------- utilities ----------
@@ -285,6 +356,9 @@ importInput.addEventListener('change', () => {
   importInput.value = '';
 });
 
+fillCommonFolders();
+setupFooter();
+setupCommunity();
 writeCriteria(initialCriteria());
 renderSaved();
 setupSignIn();

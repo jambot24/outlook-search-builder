@@ -22,11 +22,18 @@
   </header>
 
   <main>
+    <section class="panel wide" aria-labelledby="library-title">
+      <h2 id="library-title">Search library</h2>
+      <p class="muted">Start from a ready-made search, then adjust it in the form below. Community searches are shared and voted on by other users.</p>
+      <div id="library"></div>
+    </section>
+
     <section>
       <form class="panel" id="builder" autocomplete="off">
         <h2>Search criteria</h2>
 
         <h3>Words</h3>
+        <p class="muted">End a word with * to match its beginning: migrat* finds migrate and migration.</p>
         <div class="grid">
           <label class="field">All of these words
             <input type="text" name="allWords" placeholder="invoice overdue">
@@ -150,12 +157,18 @@
 
         <h3>Folder</h3>
         <div class="grid">
-          <label class="field">Folder name
+          <label class="field">Folder
             <input type="text" name="folder" list="folder-options" placeholder="Inbox">
             <datalist id="folder-options"></datalist>
-            <span class="hint" id="folder-hint">Type a folder name, or sign in (top right) to pick from your folders.</span>
+            <span class="hint" id="folder-hint">Inbox unless you pick another. Choose All folders to search everything.</span>
+            <button type="button" id="load-folders" class="link small hidden">Load my folders from Outlook</button>
+          </label>
+          <label class="field check">
+            <span><input type="checkbox" name="includeDeleted" value="yes"> Include Deleted Items</span>
+            <span class="hint">Outlook controls this with a setting, so the steps appear under each query.</span>
           </label>
         </div>
+        <p class="muted">Outlook has no folder keyword. The folder and Deleted Items choices become instructions under each query.</p>
 
         <div class="actions">
           <button type="button" id="clear-form">Clear form</button>
@@ -166,16 +179,32 @@
       <div class="panel">
         <h2>Save this search</h2>
         <div class="inline">
-          <input type="text" id="save-name" placeholder="Name, e.g. Unpaid invoices from Contoso" maxlength="120">
+          <input type="text" id="save-name" placeholder="Name, e.g. Unpaid invoices from Contoso" maxlength="80">
           <button type="button" id="save" class="primary fixed">Save</button>
         </div>
-        <p class="muted">Saved searches stay in this browser only. Export them to move them to another browser or share them.</p>
+        <p class="muted">Saved searches stay in this browser only. Export them to move them to another browser.</p>
+
+        <h3>Share with the community</h3>
+        <div class="grid">
+          <label class="field">Category
+            <select id="share-category"></select>
+          </label>
+          <label class="field">Your description (optional)
+            <input type="text" id="share-description" placeholder="What this finds, in your words">
+            <span class="hint" id="share-count">0/140</span>
+          </label>
+        </div>
+        <div class="actions">
+          <button type="button" id="share-community">Share with the community</button>
+        </div>
+        <p class="muted" id="share-note">Uses the name above as the title. Requires signing in with a Microsoft account (work, school or personal). We show our own explanation under every search; yours appears alongside it. Only the search is shared, never your folders or anything from your mailbox.</p>
       </div>
     </section>
 
     <section>
       <div class="panel">
         <h2>Your queries</h2>
+        <p class="explain-box"><strong>What this search does:</strong> <span id="explain"></span></p>
         <div id="outputs"></div>
       </div>
 
@@ -221,8 +250,9 @@
   </main>
 
   <footer>
-    Everything runs in your browser. Searches you save are stored on this device and are never sent to a server.
-    Signing in is optional and only reads your mail folder names.
+    <p>Searches you save are stored in this browser. Only searches you choose to share with the community are sent to our server.
+    Signing in is optional. It identifies you when you share or vote, and reads your mail folder names only if you click "Load my folders".</p>
+    <p id="footer-links"></p>
   </footer>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

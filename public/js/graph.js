@@ -1,12 +1,14 @@
-// Optional Microsoft sign-in, used only to list the user's mail folders.
+// Optional Microsoft sign-in: identifies users who share and vote, and can list their mail folders.
 // MSAL is loaded on demand so visitors who never sign in never download it.
 
 const MSAL_VERSION = '5.22.0';
 const MSAL_URL = `https://cdn.jsdelivr.net/npm/@azure/msal-browser@${MSAL_VERSION}/lib/msal-browser.min.js`;
 const MSAL_SRI = 'sha384-0xw/kzSK+WLDaLIkXwqFOXYqCnxt2agAhE5d3NN2ynU8GW5pry4+6dDtv4U2Fhkx';
-// Mail.ReadBasic is the least-privileged scope that can list mail folders.
-// It cannot read message bodies or attachments.
-const SCOPES = ['Mail.ReadBasic'];
+// Signing in asks only for identity. Mail.ReadBasic, the least-privileged scope that can list
+// mail folders (it cannot read bodies or attachments), is requested only when folders are loaded,
+// so tenants that block user consent to mail access can still sign in to share and vote.
+const SIGN_IN_SCOPES = ['openid', 'profile'];
+const FOLDER_SCOPES = ['Mail.ReadBasic'];
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const MAX_FOLDERS = 500;
 const MAX_DEPTH = 4;
@@ -58,7 +60,7 @@ export async function currentAccount(config) {
 
 export async function signIn(config) {
   const client = await getClient(config);
-  const result = await client.loginPopup({ scopes: SCOPES, prompt: 'select_account' });
+  const result = await client.loginPopup({ scopes: SIGN_IN_SCOPES, prompt: 'select_account' });
   return result.account;
 }
 
@@ -73,9 +75,21 @@ async function getToken(config) {
   const account = client.getAllAccounts()[0];
   if (!account) throw new Error('Not signed in.');
   try {
-    return (await client.acquireTokenSilent({ scopes: SCOPES, account })).accessToken;
+    return (await client.acquireTokenSilent({ scopes: FOLDER_SCOPES, account })).accessToken;
   } catch {
-    return (await client.acquireTokenPopup({ scopes: SCOPES, account })).accessToken;
+    return (await client.acquireTokenPopup({ scopes: FOLDER_SCOPES, account })).accessToken;
+  }
+}
+
+// ID token for this site's own API. The server verifies its signature, audience and issuer.
+export async function getIdToken(config, { forceRefresh = false } = {}) {
+  const client = await getClient(config);
+  const account = client.getAllAccounts()[0];
+  if (!account) throw new Error('Sign in with Microsoft first.');
+  try {
+    return (await client.acquireTokenSilent({ scopes: SIGN_IN_SCOPES, account, forceRefresh })).idToken;
+  } catch {
+    return (await client.acquireTokenPopup({ scopes: SIGN_IN_SCOPES, account })).idToken;
   }
 }
 

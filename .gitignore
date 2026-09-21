@@ -5,3 +5,4 @@ node_modules/
 load-secrets.sh
 .wrangler/
 coverage/
+.wrangler/

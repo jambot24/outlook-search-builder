@@ -33,6 +33,34 @@ function words(value) {
   return String(value ?? '').replace(/"/g, '').split(/\s+/).filter(Boolean);
 }
 
+const WILDCARD_WHERE = 'Outlook only supports * at the end of a single word, like migrat*. Other asterisks were removed.';
+const WILDCARD_CLASSIC = 'Outlook Classic matches the start of words automatically, so a trailing * was dropped.';
+
+// Applies Outlook's wildcard rules to one word: a trailing * is a prefix match on the modern
+// engine, Classic prefix-matches without it, and * anywhere else is unsupported.
+export function wildcard(word, engine, warn = () => {}) {
+  let w = String(word ?? '');
+  const trailing = /\*+$/.test(w);
+  const core = w.replace(/\*+$/, '');
+  if (core.includes('*')) warn(WILDCARD_WHERE);
+  w = core.replace(/\*/g, '');
+  if (!w) return '';
+  if (!trailing) return w;
+  if (engine === 'classic') { warn(WILDCARD_CLASSIC); return w; }
+  return `${w}*`;
+}
+
+// A field value: several words become a quoted phrase, where wildcards do not work.
+function term(value, engine, warn) {
+  const v = String(value ?? '').replace(/"/g, '').trim().replace(/\s+/g, ' ');
+  if (!v) return '';
+  if (/\s/.test(v)) {
+    if (v.includes('*')) warn(WILDCARD_WHERE);
+    return quote(v.replace(/\*/g, ''));
+  }
+  return wildcard(v, engine, warn);
+}
+
 // iso is "YYYY-MM-DD" from <input type=date>.
 export function formatDate(iso, format) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? ''));
@@ -55,24 +83,27 @@ function orGroup(terms) {
   return terms.length === 1 ? terms[0] : `(${terms.join(' OR ')})`;
 }
 
-function keywordTerms(keyword, value) {
-  return splitList(value).map(quote).filter(Boolean).map((v) => `${keyword}:${v}`);
+function keywordTerms(keyword, value, engine, warn) {
+  return splitList(value).map((v) => term(v, engine, warn)).filter(Boolean).map((v) => `${keyword}:${v}`);
 }
 
-function wordParts(c, engine) {
+function wordParts(c, engine, warn = () => {}) {
+  const w = (value) => words(value).map((x) => wildcard(x, engine, warn)).filter(Boolean);
   const parts = [];
-  parts.push(...words(c.allWords));
-  if (quote(c.phrase)) parts.push(`"${quote(c.phrase).replace(/"/g, '')}"`);
-  parts.push(orGroup(words(c.anyWords)));
-  const exclude = words(c.noneWords);
+  parts.push(...w(c.allWords));
+  const phrase = String(c.phrase ?? '').replace(/"/g, '').trim();
+  if (phrase.includes('*')) warn(WILDCARD_WHERE);
+  if (quote(phrase.replace(/\*/g, ''))) parts.push(`"${quote(phrase.replace(/\*/g, '')).replace(/"/g, '')}"`);
+  parts.push(orGroup(w(c.anyWords)));
+  const exclude = w(c.noneWords);
   // Classic joins with AND, so "AND NOT word" reads correctly there.
   parts.push(...exclude.map((w) => (engine === 'classic' ? `NOT ${w}` : `-${w}`)));
   return parts;
 }
 
 function peopleParts(c, engine, warn) {
-  const parts = ['from', 'to', 'cc', 'bcc'].map((k) => orGroup(keywordTerms(k, c[k])));
-  const people = splitList(c.participants).map(quote).filter(Boolean);
+  const parts = ['from', 'to', 'cc', 'bcc'].map((k) => orGroup(keywordTerms(k, c[k], engine, warn)));
+  const people = splitList(c.participants).map((v) => term(v, engine, warn)).filter(Boolean);
   if (people.length) {
     if (engine === 'classic') {
       // Classic does not document participants:, so spell it out with keywords it does document.
@@ -89,13 +120,13 @@ function peopleParts(c, engine, warn) {
 
 function contentParts(c, engine, warn) {
   const parts = [];
-  if (quote(c.subject)) parts.push(`subject:${quote(c.subject)}`);
-  if (quote(c.body)) {
-    parts.push(`body:${quote(c.body)}`);
+  if (term(c.subject, engine, warn)) parts.push(`subject:${term(c.subject, engine, warn)}`);
+  if (term(c.body, engine, warn)) {
+    parts.push(`body:${term(c.body, engine, warn)}`);
     if (engine === 'classic') warn('body: is not on Microsoft\'s list for classic Outlook. If it returns nothing, put the words in "All of these words".');
   }
-  if (quote(c.attachmentName)) {
-    parts.push(`attachment:${quote(c.attachmentName)}`);
+  if (term(c.attachmentName, engine, warn)) {
+    parts.push(`attachment:${term(c.attachmentName, engine, warn)}`);
     if (engine !== 'classic') warn('Searching by attachment name is not documented here. If it returns nothing, use the Attachments filter instead.');
   }
   if (c.hasAttachments === 'yes' || c.hasAttachments === 'no') parts.push(`hasattachment:${c.hasAttachments}`);
@@ -158,7 +189,7 @@ function statusParts(c, engine, warn) {
     parts.push(`importance:${c.importance}`);
     if (engine !== 'classic') warn('importance: is not documented here. If it returns nothing, use the Filters menu instead.');
   }
-  if (quote(c.category)) parts.push(`category:${quote(c.category)}`);
+  if (term(c.category, engine, warn)) parts.push(`category:${term(c.category, engine, warn)}`);
   const mb = Number(c.sizeMb);
   if ((c.sizeOp === '>' || c.sizeOp === '<') && c.sizeMb !== '' && c.sizeMb != null && Number.isFinite(mb) && mb >= 0) {
     const size = mb < 1 ? `${Math.round(mb * KB_PER_MB)} KB` : `${+mb.toFixed(1)} MB`;
@@ -168,9 +199,38 @@ function statusParts(c, engine, warn) {
   return parts;
 }
 
-function scopeText(c) {
-  const folder = String(c.folder ?? '').trim();
-  return folder ? `Search is scoped by folder, not by query text. Open or select the "${folder}" folder first, then set the search scope to Current folder.` : '';
+export const ALL_FOLDERS = 'All folders';
+export const COMMON_FOLDERS = ['Inbox', 'Sent Items', 'Drafts', 'Archive', 'Junk Email', 'Deleted Items', 'Outbox', ALL_FOLDERS];
+
+const SCOPE = {
+  classic: {
+    folder: (f) => `Select the "${f}" folder, then set the scope dropdown next to the search box to Current Folder.`,
+    all: 'Set the scope dropdown next to the search box to Current Mailbox (or All Mailboxes to include shared and archive mailboxes).',
+    deleted: 'To include Deleted Items: File > Options > Search, tick "Include messages from the Deleted Items folder in each data file when searching in All Items".',
+  },
+  modern: {
+    folder: (f) => `Select the "${f}" folder, then choose Current folder in the scope list at the left of the search box.`,
+    all: 'Choose All folders in the scope list at the left of the search box.',
+    deleted: 'To include Deleted Items: Settings > General > Search, tick "Include deleted items".',
+  },
+  mac: {
+    folder: (f) => `Select the "${f}" folder, then choose Current Folder in the search scope.`,
+    all: 'Choose All Folders (or All Mailboxes) in the search scope.',
+    deleted: 'Outlook for Mac has no documented setting for Deleted Items. To be sure, also run the search in the Deleted Items folder.',
+  },
+  mobile: {
+    folder: (f) => `Outlook mobile searches every folder, so results cannot be limited to "${f}".`,
+    all: 'Outlook mobile searches every folder.',
+    deleted: 'Outlook mobile has no setting for Deleted Items.',
+  },
+};
+
+function scopeText(c, clientKey) {
+  const rules = SCOPE[clientKey];
+  const folder = String(c.folder ?? '').trim() || 'Inbox';
+  const lines = [folder.toLowerCase() === ALL_FOLDERS.toLowerCase() ? rules.all : rules.folder(folder)];
+  if (c.includeDeleted === 'yes' && folder.toLowerCase() !== 'deleted items') lines.push(rules.deleted);
+  return lines.join(' ');
 }
 
 export function render(clientKey, criteria) {
@@ -182,7 +242,7 @@ export function render(clientKey, criteria) {
   const warn = (msg) => { if (!warnings.includes(msg)) warnings.push(msg); };
 
   const parts = [
-    ...wordParts(c, engine),
+    ...wordParts(c, engine, warn),
     ...peopleParts(c, engine, warn),
     ...contentParts(c, engine, warn),
     ...dateParts(c, engine, warn),
@@ -190,14 +250,14 @@ export function render(clientKey, criteria) {
   ].filter(Boolean);
 
   // Explicit AND: Microsoft's Windows and web/Mac references treat bare spaces differently.
-  const result = { query: parts.join(' AND '), warnings, scope: scopeText(c) };
+  const result = { query: parts.join(' AND '), warnings, scope: parts.length ? scopeText(c, clientKey) : '' };
 
   if (clientKey === 'mobile' && result.query) {
     result.fallback = [
       ...wordParts(c, engine).filter((p) => p && !p.startsWith('-') && !p.startsWith('(')),
       ...['from', 'to', 'cc', 'bcc', 'participants'].flatMap((k) => splitList(c[k]).map(quote)),
       quote(c.subject),
-    ].filter(Boolean).join(' ');
+    ].filter(Boolean).join(' ').replace(/\*/g, '');
     result.warnings.unshift('Outlook mobile does not document search keywords. If this returns nothing, search the plain keywords instead and narrow with the Filters button.');
   }
   return result;

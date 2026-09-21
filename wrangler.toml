@@ -1,0 +1,11 @@
+# Cloudflare Pages configuration. Pages reads this file on every Git build.
+name = "outlook-search-builder"
+pages_build_output_dir = "public"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Application (client) ID of the Entra app registration. Public, not a secret.
+# Must match msalClientId in public/js/config.js. Empty disables sharing and voting.
+MSAL_CLIENT_ID = ""
+
+# The D1 binding is added once the database exists; see README "Community features".

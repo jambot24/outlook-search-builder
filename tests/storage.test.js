@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   STORAGE_KEY, loadSaved, persistSaved, createEntry, upsertEntry, removeEntry,
   toExportJson, toExportCsv, mergeImport, sanitizeCriteria,
-} from '../js/storage.js';
+} from '../public/js/storage.js';
 
 function memoryStorage(initial = {}) {
   const data = { ...initial };
