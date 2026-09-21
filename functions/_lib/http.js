@@ -30,13 +30,18 @@ export async function readJson(request) {
   if (!(request.headers.get('Content-Type') || '').includes('application/json')) {
     throw new ValidationError('Expected a JSON body.');
   }
-  const text = await request.text();
-  if (text.length > MAX_BODY_BYTES) throw new ValidationError('Request body is too large.');
+  const declared = Number(request.headers.get('Content-Length'));
+  if (declared > MAX_BODY_BYTES) throw new ValidationError('Request body is too large.');
+  const buffer = await request.arrayBuffer();
+  if (buffer.byteLength > MAX_BODY_BYTES) throw new ValidationError('Request body is too large.');
+  let body;
   try {
-    return JSON.parse(text);
+    body = JSON.parse(new TextDecoder().decode(buffer));
   } catch {
     throw new ValidationError('Request body is not valid JSON.');
   }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ValidationError('Request body must be a JSON object.');
+  return body;
 }
 
 // Wraps a handler so known errors become clean responses and unknown ones are logged, not leaked.

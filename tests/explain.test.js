@@ -56,3 +56,11 @@ test('days-ago window is described', () => {
 test('domains read as anyone at the domain', () => {
   assert.equal(explain({ from: '@Contoso.com, jane@x.com' }), 'Finds messages from anyone at contoso.com or jane@x.com.');
 });
+
+test('explanation stays in step with what the query actually does', () => {
+  assert.equal(explain({ dateMode: 'within', days: '2.5' }), '');
+  assert.equal(explain({ dateMode: 'ago', days: '', days2: '' }), '');
+  assert.equal(explain({ sizeOp: '>', sizeMb: '-1' }), '');
+  assert.equal(explain({ phrase: '"' }), '');
+  assert.equal(explain({ phrase: 'a*b' }), 'Finds messages containing the phrase "ab".');
+});

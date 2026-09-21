@@ -4,9 +4,13 @@
 const JWKS_URL = 'https://login.microsoftonline.com/common/discovery/v2.0/keys';
 const JWKS_TTL_MS = 60 * 60 * 1000;
 const CLOCK_SKEW_S = 300;
+// An unknown key id triggers at most one early refetch in this window, so junk tokens
+// cannot make every request call Microsoft.
+const FORCED_REFETCH_MS = 5 * 60 * 1000;
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 let jwksCache = { keys: null, fetchedAt: 0 };
+let lastForcedAt = 0;
 
 export class AuthError extends Error {}
 
@@ -35,8 +39,11 @@ async function fetchJwks(fetchImpl, force) {
 
 async function findKey(kid, fetchImpl) {
   let jwk = (await fetchJwks(fetchImpl, false)).find((k) => k.kid === kid);
-  // Microsoft rotates keys; refetch once before rejecting an unknown kid.
-  if (!jwk) jwk = (await fetchJwks(fetchImpl, true)).find((k) => k.kid === kid);
+  // Microsoft rotates keys; refetch early before rejecting an unknown kid, but not too often.
+  if (!jwk && Date.now() - lastForcedAt > FORCED_REFETCH_MS) {
+    lastForcedAt = Date.now();
+    jwk = (await fetchJwks(fetchImpl, true)).find((k) => k.kid === kid);
+  }
   if (!jwk) throw new AuthError('Unknown signing key.');
   return crypto.subtle.importKey(
     'jwk',
@@ -98,4 +105,5 @@ export async function requireUser(request, env, fetchImpl = fetch) {
 
 export function resetJwksCacheForTests() {
   jwksCache = { keys: null, fetchedAt: 0 };
+  lastForcedAt = 0;
 }

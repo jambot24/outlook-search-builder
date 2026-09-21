@@ -51,7 +51,7 @@ export function validateCriteria(input) {
   }
   for (const key of DATE_FIELDS) {
     if (!raw[key]) continue;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw[key])) throw new ValidationError(`Invalid ${key}.`);
+    if (!isCalendarDate(raw[key])) throw new ValidationError(`Invalid ${key}.`);
     out[key] = raw[key];
   }
   for (const key of ['days', 'days2']) {
@@ -79,9 +79,27 @@ export function validateCriteria(input) {
   if (out.dateMode !== 'ago') delete out.days2;
   if (out.dateMode && out.dateMode !== 'between') delete out.date2;
   if (!out.sizeOp || out.sizeMb === undefined) { delete out.sizeOp; delete out.sizeMb; }
+  // A date mode missing its values adds nothing to the query, so drop it (keeps duplicates detectable).
+  const complete = {
+    preset: () => true,
+    on: () => out.date1, after: () => out.date1, before: () => out.date1,
+    between: () => out.date1 && out.date2,
+    older: () => Number(out.days) >= 1, within: () => Number(out.days) >= 1,
+    ago: () => out.days !== undefined && out.days2 !== undefined,
+  };
+  if (out.dateMode && !complete[out.dateMode]()) {
+    for (const k of ['dateMode', 'dateField', 'datePreset', 'date1', 'date2', 'days', 'days2']) delete out[k];
+  }
 
   if (!renderQueries(out).modern) throw new ValidationError('The search is empty. Fill in at least one field.');
   return out;
+}
+
+function isCalendarDate(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return false;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
 }
 
 export function criteriaKey(criteria) {

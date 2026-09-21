@@ -41,6 +41,29 @@ export function isDomain(value) {
   return /^@?[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/i.test(String(value ?? '').trim());
 }
 
+// Shared validity rules, so the query, the explanation and the search-folder steps agree.
+export function validDays(value, { min = 1 } = {}) {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= min && n <= 3650 ? n : null;
+}
+
+// Returns the size in MB when a usable size filter is set, else null. "Smaller than 0" matches nothing.
+export function validSizeMb(c) {
+  if (c?.sizeOp !== '>' && c?.sizeOp !== '<') return null;
+  if (c.sizeMb === undefined || c.sizeMb === null || String(c.sizeMb).trim() === '') return null;
+  const mb = Number(c.sizeMb);
+  if (!Number.isFinite(mb) || mb < 0 || (c.sizeOp === '<' && mb === 0)) return null;
+  return mb;
+}
+
+// A person value as it goes into a query: domains lose a leading @ and are lower-cased.
+function personTerm(v, engine, warn) {
+  if (!isDomain(v)) return term(v, engine, warn);
+  warn(DOMAIN_NOTE);
+  return v.trim().replace(/^@/, '').toLowerCase();
+}
+
 const DOMAIN_NOTE = 'Matching everyone at a domain (from:contoso.com) is widely used but not documented by Microsoft. If it returns nothing, use a full address.';
 
 // Splits on spaces but keeps "quoted phrases" together: 'unsubscribe "opt out"' -> ['unsubscribe', '"opt out"'].
@@ -53,8 +76,10 @@ export function words(value) {
       const phrase = m[1].trim().replace(/\s+/g, ' ');
       if (phrase) out.push(/\s/.test(phrase) ? `"${phrase}"` : phrase);
     } else {
-      const w = m[2].replace(/"/g, '');
-      if (w) out.push(w);
+      // A leading - or + and the bare words AND/OR/NOT would be read as search operators.
+      const w = m[2].replace(/"/g, '').replace(/^[-+]+/, '');
+      if (/^(and|or|not)$/i.test(w)) out.push(`"${w}"`);
+      else if (w) out.push(w);
     }
   }
   return out;
@@ -111,11 +136,7 @@ function orGroup(terms) {
 }
 
 function keywordTerms(keyword, value, engine, warn) {
-  return splitList(value).map((v) => {
-    if (!isDomain(v)) return term(v, engine, warn);
-    warn(DOMAIN_NOTE);
-    return v.replace(/^@/, '').toLowerCase();
-  }).filter(Boolean).map((v) => `${keyword}:${v}`);
+  return splitList(value).map((v) => personTerm(v, engine, warn)).filter(Boolean).map((v) => `${keyword}:${v}`);
 }
 
 function wordParts(c, engine, warn = () => {}) {
@@ -138,7 +159,7 @@ function wordParts(c, engine, warn = () => {}) {
 
 function peopleParts(c, engine, warn) {
   const parts = ['from', 'to', 'cc', 'bcc'].map((k) => orGroup(keywordTerms(k, c[k], engine, warn)));
-  const people = splitList(c.participants).map((v) => term(v, engine, warn)).filter(Boolean);
+  const people = splitList(c.participants).map((v) => personTerm(v, engine, warn)).filter(Boolean);
   if (people.length) {
     if (engine === 'classic') {
       // Classic does not document participants:, so spell it out with keywords it does document.
@@ -248,9 +269,9 @@ function dateParts(c, engine, warn, note, now) {
   }
 
   if (mode === 'ago') {
-    let a = Number(c.days);
-    let b = Number(c.days2);
-    if (![a, b].every((n) => Number.isInteger(n) && n >= 0 && n <= MAX_DAYS)) {
+    let a = validDays(c.days, { min: 0 });
+    let b = validDays(c.days2, { min: 0 });
+    if (a === null || b === null) {
       warn('Enter both numbers of days to include the date filter.');
       return [];
     }
@@ -260,8 +281,8 @@ function dateParts(c, engine, warn, note, now) {
   }
 
   if (mode === 'older' || mode === 'within') {
-    const days = Number(c.days);
-    if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) {
+    const days = validDays(c.days);
+    if (days === null) {
       warn('Enter a number of days to include the date filter.');
       return [];
     }
@@ -314,8 +335,8 @@ function statusParts(c, engine, warn) {
     if (engine !== 'classic') warn('importance: is not documented here. If it returns nothing, use the Filters menu instead.');
   }
   if (term(c.category, engine, warn)) parts.push(`category:${term(c.category, engine, warn)}`);
-  const mb = Number(c.sizeMb);
-  if ((c.sizeOp === '>' || c.sizeOp === '<') && c.sizeMb !== '' && c.sizeMb != null && Number.isFinite(mb) && mb >= 0) {
+  const mb = validSizeMb(c);
+  if (mb !== null) {
     const size = mb < 1 ? `${Math.round(mb * KB_PER_MB)} KB` : `${+mb.toFixed(1)} MB`;
     parts.push(`messagesize:${c.sizeOp}${size}`);
     if (engine !== 'classic') warn('messagesize: is documented for Outlook on Windows but not in the web and Mac keyword table. If it returns nothing, sort the message list by size instead.');

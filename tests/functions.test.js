@@ -2,7 +2,7 @@
 // (via wrangler's platform proxy), and the route handlers end to end.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { getPlatformProxy } from 'wrangler';
 import { checkClaims, verifyIdToken, userKey, AuthError, resetJwksCacheForTests } from '../functions/_lib/auth.js';
 import { validateCriteria, validateTitle, validateDescription, validateCategory, validateTarget, criteriaKey, cleanText, ValidationError } from '../functions/_lib/validate.js';
@@ -56,9 +56,11 @@ before(async () => {
 
   proxy = await getPlatformProxy({ configPath: new URL('./wrangler.test.toml', import.meta.url).pathname, persist: false });
   db = proxy.env.DB;
-  const sql = readFileSync(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8')
-    .split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
-  for (const stmt of sql.split(';').map((x) => x.trim()).filter(Boolean)) await db.prepare(stmt).run();
+  const dir = new URL('../migrations/', import.meta.url);
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) {
+    const sql = readFileSync(new URL(file, dir), 'utf8').split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+    for (const stmt of sql.split(';').map((x) => x.trim()).filter(Boolean)) await db.prepare(stmt).run();
+  }
 
   realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
@@ -292,4 +294,82 @@ test('routes: 503 with a clear message when the database is not bound', async ()
   const res = await searchesRoute.onRequestGet({ request, env: {} });
   assert.equal(res.status, 503);
   assert.match((await res.json()).error, /not switched on/);
+});
+
+// ---------- regressions from the 2026-09-21 bug hunt ----------
+
+test('a hidden duplicate is refused without revealing its title', async () => {
+  const { id } = await community.createSearch(db, { title: 'Offensive title', category: 'other', criteria: { allWords: 'squatword' }, author: author(200) });
+  await db.prepare("UPDATE searches SET moderation = 'hidden' WHERE id = ?1").bind(id).run();
+  await assert.rejects(
+    community.createSearch(db, { title: 'Clean', category: 'other', criteria: { allWords: 'SquatWord' }, author: author(201) }),
+    (err) => err.data === undefined && /hidden by moderation/.test(err.message) && !err.message.includes('Offensive'),
+  );
+});
+
+test('deleting a search removes its descriptions, their votes and reports, atomically', async () => {
+  const { id } = await community.createSearch(db, { title: 'With children', category: 'other', criteria: { allWords: 'childtest' }, description: 'A description here', author: author(210) });
+  const row = await db.prepare('SELECT id FROM descriptions WHERE search_id = ?1').bind(id).first();
+  await community.vote(db, { type: 'description', id: row.id, value: 1, voter: author(211) });
+  await community.report(db, { type: 'description', id: row.id, reporter: author(212) });
+  await community.removeOwn(db, { type: 'search', id, author: author(210) });
+  const left = await db.prepare('SELECT (SELECT COUNT(*) FROM votes WHERE target_id = ?1) + (SELECT COUNT(*) FROM reports WHERE target_id = ?1) + (SELECT COUNT(*) FROM descriptions WHERE id = ?1) AS n').bind(row.id).first();
+  assert.equal(left.n, 0);
+});
+
+test('rate limits cannot be reset by deleting or un-voting, and clearing a vote is always allowed', async () => {
+  const who = author(220);
+  for (let i = 0; i < community.LIMITS.submissions; i += 1) {
+    const { id } = await community.createSearch(db, { title: `Churn ${i}`, category: 'other', criteria: { allWords: `churn${i}` }, author: who });
+    await community.removeOwn(db, { type: 'search', id, author: who });
+  }
+  await assert.rejects(community.createSearch(db, { title: 'Churn x', category: 'other', criteria: { allWords: 'churnx' }, author: who }), /a day/);
+
+  const { id } = await community.createSearch(db, { title: 'Vote target', category: 'other', criteria: { allWords: 'votetarget' }, author: author(221) });
+  const voter = author(222);
+  const at = new Date().toISOString();
+  await db.batch(Array.from({ length: community.LIMITS.votes }, () => db.prepare("INSERT INTO action_log (actor, kind, created_at) VALUES (?1, 'vote', ?2)").bind(voter, at)));
+  await assert.rejects(community.vote(db, { type: 'search', id, value: 1, voter }), /vote limit/);
+  assert.equal((await community.vote(db, { type: 'search', id, value: 0, voter })).myVote, 0);
+});
+
+test('paging ignores non-integer values instead of failing', async () => {
+  for (const offset of ['Infinity', '1e21', '0.5', '-3', 'x']) {
+    const r = await community.listSearches(db, { offset, limit: '1.5' });
+    assert.ok(Array.isArray(r.searches), offset);
+  }
+});
+
+test('validation rejects impossible dates and drops incomplete date modes', () => {
+  assert.throws(() => validateCriteria({ dateMode: 'on', date1: '2026-13-45' }), /date1/);
+  assert.throws(() => validateCriteria({ dateMode: 'on', date1: '2026-02-30' }), /date1/);
+  assert.deepEqual(validateCriteria({ subject: 'x', dateMode: 'on' }), { subject: 'x' });
+  assert.deepEqual(validateCriteria({ subject: 'x', dateMode: 'between', date1: '2026-01-01' }), { subject: 'x' });
+  assert.deepEqual(validateCriteria({ subject: 'x', dateMode: 'older' }), { subject: 'x' });
+  assert.deepEqual(validateCriteria({ subject: 'x', dateMode: 'ago', days: '7', days2: '14' }), { subject: 'x', dateMode: 'ago', days: '7', days2: '14' });
+});
+
+test('routes: null or array JSON bodies and oversized UTF-8 bodies are 400', async () => {
+  const token = await makeToken(goodClaims(230));
+  for (const body of ['null', '[1]', '"x"']) {
+    const request = new Request('https://example.test/api/vote', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body });
+    assert.equal((await voteRoute.onRequestPost({ request, env: env() })).status, 400, body);
+  }
+  const big = JSON.stringify({ type: 'search', id: 'x', pad: '\u{1F600}'.repeat(3000) });
+  const request = new Request('https://example.test/api/vote', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: big });
+  const res = await voteRoute.onRequestPost({ request, env: env() });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /too large/);
+});
+
+test('an unknown key id forces at most one JWKS refetch per window', async () => {
+  resetJwksCacheForTests();
+  let fetches = 0;
+  const counting = async () => { fetches += 1; return jwksFetch(); };
+  await verifyIdToken(await makeToken(goodClaims()), CLIENT_ID, counting);
+  const before = fetches;
+  for (let i = 0; i < 5; i += 1) {
+    await assert.rejects(verifyIdToken(await makeToken(goodClaims(), { kid: `junk-${i}` }), CLIENT_ID, counting), /Unknown signing key/);
+  }
+  assert.equal(fetches - before, 1);
 });

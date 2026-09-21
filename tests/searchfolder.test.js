@@ -63,3 +63,12 @@ test('new Outlook with nothing matching, Mac and mobile', () => {
   assert.equal(searchFolderSteps('mobile', {}).supported, false);
   assert.equal(searchFolderSteps('classic', null).supported, true);
 });
+
+test('search folder steps skip incomplete size and day values', () => {
+  const r = searchFolderSteps('modern', { to: 'bob@x.com', sizeOp: '>' });
+  assert.doesNotMatch(r.steps.join(' '), /NaN/);
+  assert.deepEqual(r.leftOut, []);
+  const o = searchFolderSteps('modern', { to: 'bob@x.com', dateMode: 'older' });
+  assert.equal(o.supported, false);
+  assert.doesNotMatch(searchFolderSteps('classic', { dateMode: 'ago', days: '5', days2: '9000' }).steps.join(' '), /between/);
+});

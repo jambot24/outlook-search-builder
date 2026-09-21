@@ -1,7 +1,7 @@
 // Plain-English description of what a set of criteria finds.
 // Shown under the generated queries and under every library search.
 
-import { splitList, words, isDomain } from './query.js';
+import { splitList, words, isDomain, validDays, validSizeMb } from './query.js';
 import { parseFileTypes, labelFor } from './filetypes.js';
 
 function list(items, joiner = 'or') {
@@ -33,11 +33,13 @@ function datePhrase(c) {
     case 'on': return d1 ? `${verb} on ${d1}` : '';
     case 'after': return d1 ? `${verb} on or after ${d1}` : '';
     case 'before': return d1 ? `${verb} before ${d1}` : '';
-    case 'older': return Number(c.days) > 0 ? `${verb} more than ${Number(c.days)} days ago` : '';
-    case 'within': return Number(c.days) > 0 ? `${verb} in the last ${Number(c.days)} days` : '';
+    case 'older': return validDays(c.days) ? `${verb} more than ${validDays(c.days)} days ago` : '';
+    case 'within': return validDays(c.days) ? `${verb} in the last ${validDays(c.days)} days` : '';
     case 'ago': {
-      const [a, b] = [Number(c.days), Number(c.days2)].sort((x, y) => x - y);
-      return Number.isFinite(a) && Number.isFinite(b) && c.days !== undefined && c.days2 !== undefined ? `${verb} between ${a} and ${b} days ago` : '';
+      const a = validDays(c.days, { min: 0 });
+      const b = validDays(c.days2, { min: 0 });
+      if (a === null || b === null) return '';
+      return `${verb} between ${Math.min(a, b)} and ${Math.max(a, b)} days ago`;
     }
     case 'between': {
       if (!d1 || !d2) return '';
@@ -66,7 +68,8 @@ export function explain(criteria) {
 
   const all = wordsOf(c.allWords);
   if (all.length) clauses.push(`containing ${list(all.map((w) => `"${w}"`), 'and')}`);
-  if (String(c.phrase ?? '').trim()) clauses.push(`containing the phrase "${String(c.phrase).replace(/"/g, '').trim()}"`);
+  const phrase = String(c.phrase ?? '').replace(/["*]/g, '').trim().replace(/\s+/g, ' ');
+  if (phrase) clauses.push(`containing the phrase "${phrase}"`);
   const any = wordsOf(c.anyWords);
   if (any.length) clauses.push(`mentioning ${list(any.map((w) => `"${w}"`))}`);
   const none = wordsOf(c.noneWords);
@@ -84,8 +87,8 @@ export function explain(criteria) {
   const date = datePhrase(c);
   if (date) clauses.push(date);
 
-  const mb = Number(c.sizeMb);
-  if ((c.sizeOp === '>' || c.sizeOp === '<') && c.sizeMb !== '' && c.sizeMb != null && Number.isFinite(mb)) {
+  const mb = validSizeMb(c);
+  if (mb !== null) {
     clauses.push(`${c.sizeOp === '>' ? 'larger' : 'smaller'} than ${mb} MB`);
   }
 

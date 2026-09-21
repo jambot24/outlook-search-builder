@@ -3,7 +3,7 @@
 // to the dialog field that does the same job, and anything with no field is listed as left out.
 // Sources: see docs/SYNTAX.md, "Search folders".
 
-import { splitList, words, presetRange, formatDate } from './query.js';
+import { splitList, words, presetRange, formatDate, validDays, validSizeMb } from './query.js';
 import { parseFileTypes } from './filetypes.js';
 
 const CLASSIC_TIME = new Set(['today', 'yesterday', 'this week', 'last week', 'this month', 'last month']);
@@ -50,7 +50,7 @@ function classicSteps(c, now) {
   const Field = field === 'sent' ? 'Sent' : 'Received';
   if (c.dateMode === 'preset' && CLASSIC_TIME.has(c.datePreset)) {
     messages.push(`Time: ${field} · ${c.datePreset}`);
-  } else if (c.dateMode === 'within' && Number(c.days) === 7) {
+  } else if (c.dateMode === 'within' && validDays(c.days) === 7) {
     messages.push(`Time: ${field} · in the last 7 days`);
   } else if (c.dateMode === 'preset') {
     const r = presetRange(c.datePreset, now);
@@ -58,14 +58,14 @@ function classicSteps(c, now) {
       advanced.push(`${Field} · between · ${us(r[0])} and ${us(r[1])}`);
       notes.push(`These dates are fixed. The folder will not move on to a new "${c.datePreset}" by itself.`);
     }
-  } else if (c.dateMode === 'within' && Number(c.days) > 0) {
-    advanced.push(`${Field} · on or after · ${us(isoDaysAgo(Number(c.days), now))}`);
+  } else if (c.dateMode === 'within' && validDays(c.days)) {
+    advanced.push(`${Field} · on or after · ${us(isoDaysAgo(validDays(c.days), now))}`);
     notes.push('This date is fixed, so the folder will not keep a rolling window.');
-  } else if (c.dateMode === 'older' && Number(c.days) > 0) {
-    advanced.push(`${Field} · on or before · ${us(isoDaysAgo(Number(c.days) + 1, now))}`);
+  } else if (c.dateMode === 'older' && validDays(c.days)) {
+    advanced.push(`${Field} · on or before · ${us(isoDaysAgo(validDays(c.days) + 1, now))}`);
     notes.push('This date is fixed. For a rolling "older than" folder, use the ready-made "Old mail" search folder instead.');
-  } else if (c.dateMode === 'ago' && c.days !== undefined && c.days2 !== undefined) {
-    const [a, b] = [Number(c.days), Number(c.days2)].sort((x, y) => x - y);
+  } else if (c.dateMode === 'ago' && validDays(c.days, { min: 0 }) !== null && validDays(c.days2, { min: 0 }) !== null) {
+    const [a, b] = [validDays(c.days, { min: 0 }), validDays(c.days2, { min: 0 })].sort((x, y) => x - y);
     advanced.push(`${Field} · between · ${us(isoDaysAgo(b, now))} and ${us(isoDaysAgo(a, now))}`);
     notes.push('These dates are fixed, so the folder will not keep a rolling window.');
   } else if (c.dateMode === 'on' && c.date1) {
@@ -87,8 +87,8 @@ function classicSteps(c, now) {
   if (c.importance) more.push(`Whose importance is: ${c.importance}`);
   if (c.flagged === 'yes') more.push('Only items which: are flagged by me');
   if (c.category) more.push(`Categories…: tick "${c.category}"`);
-  const mb = Number(c.sizeMb);
-  if ((c.sizeOp === '>' || c.sizeOp === '<') && c.sizeMb && Number.isFinite(mb)) {
+  const mb = validSizeMb(c);
+  if (mb !== null) {
     more.push(`Size (kilobytes): ${c.sizeOp === '>' ? 'greater than' : 'less than'} ${Math.round(mb * KB_PER_MB)}`);
   }
 
@@ -123,10 +123,18 @@ function modernPick(c) {
     c.importance === 'high' && { type: 'Important mail', covers: ['importance'] },
     c.category && { type: 'Categorized mail', param: `choose "${c.category}"`, covers: ['category'] },
     (c.hasAttachments === 'yes' || parseFileTypes(c.fileTypes).length) && { type: 'Mail with attachments', covers: ['attachments'] },
-    c.sizeOp === '>' && { type: 'Large mail', param: `set the size to ${Math.round(Number(c.sizeMb) * KB_PER_MB)} KB`, covers: ['size'] },
-    c.dateMode === 'older' && { type: 'Old mail', param: `set the age to ${c.days} days`, covers: ['date'] },
+    c.sizeOp === '>' && validSizeMb(c) !== null && { type: 'Large mail', param: `set the size to ${Math.round(validSizeMb(c) * KB_PER_MB)} KB`, covers: ['size'] },
+    c.dateMode === 'older' && validDays(c.days) && { type: 'Old mail', param: `set the age to ${validDays(c.days)} days`, covers: ['date'] },
   ].filter(Boolean);
   return candidates[0] || null;
+}
+
+function hasDate(c) {
+  if (['older', 'within'].includes(c.dateMode)) return validDays(c.days) !== null;
+  if (c.dateMode === 'ago') return validDays(c.days, { min: 0 }) !== null && validDays(c.days2, { min: 0 }) !== null;
+  if (c.dateMode === 'preset') return true;
+  if (c.dateMode === 'between') return Boolean(c.date1 && c.date2);
+  return Boolean(c.date1);
 }
 
 function usedParts(c) {
@@ -138,8 +146,8 @@ function usedParts(c) {
   if (c.importance) parts.push('importance');
   if (c.category) parts.push('category');
   if (c.hasAttachments || c.fileTypes) parts.push('attachments');
-  if (c.sizeOp) parts.push('size');
-  if (c.dateMode) parts.push('date');
+  if (validSizeMb(c) !== null) parts.push('size');
+  if (c.dateMode && hasDate(c)) parts.push('date');
   if (splitList(c.to).length || splitList(c.cc).length || splitList(c.bcc).length || splitList(c.participants).length) parts.push('recipients');
   if (words(c.noneWords).length) parts.push('excluded words');
   return parts;

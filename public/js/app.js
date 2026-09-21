@@ -25,6 +25,9 @@ const toastEl = document.getElementById('toast');
 
 let saved = loadSaved(localStorage);
 let account = null;
+// True while the form holds criteria taken from a dropped email and the user has not edited them.
+// The draft is not persisted then, so nothing from the email lands in browser storage.
+let holdingEmailCriteria = false;
 let library = null;
 
 // ---------- form state ----------
@@ -44,7 +47,8 @@ const enhanced = [
   enhanceToggleGroup(form.elements.namedItem('fileTypes'), FILE_TYPES),
 ];
 
-function writeCriteria(criteria) {
+function writeCriteria(criteria, { fromEmail = false } = {}) {
+  holdingEmailCriteria = fromEmail;
   form.reset();
   // reset() leaves hidden inputs alone, so clear them explicitly.
   for (const h of form.querySelectorAll('input[type=hidden]')) h.value = '';
@@ -97,6 +101,8 @@ function searchFolderBlock(clientKey, criteria) {
 
 function refresh() {
   toggleDateFields();
+  // The MB box only means something once Larger or Smaller is chosen.
+  form.elements.namedItem('sizeMb').disabled = !form.elements.namedItem('sizeOp').value;
   enhanced.forEach((f) => f.sync());
   const criteria = readCriteria();
   renderOutputs(criteria);
@@ -106,7 +112,10 @@ function refresh() {
   hintEl.classList.toggle('hidden', !hint);
   const what = explain(criteria);
   document.getElementById('explain').textContent = what || 'Fill in the form and this will say, in plain English, what the search finds.';
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(criteria)); } catch { /* private mode */ }
+  try {
+    if (holdingEmailCriteria) localStorage.removeItem(DRAFT_KEY);
+    else localStorage.setItem(DRAFT_KEY, JSON.stringify(criteria));
+  } catch { /* private mode */ }
 }
 
 // ---------- saved searches ----------
@@ -146,9 +155,9 @@ function saveCurrent() {
 }
 
 function deleteSaved(entry) {
-  const previous = saved;
   commit(removeEntry(saved, entry.id));
-  toastWithUndo(`Deleted "${entry.name}"`, () => commit(previous));
+  // Put back only the deleted entry, so anything saved since is kept.
+  toastWithUndo(`Deleted "${entry.name}"`, () => commit(upsertEntry(saved, entry)));
 }
 
 // ---------- export / import / share ----------
@@ -188,7 +197,10 @@ async function importFile(file) {
 
 function encodeShare(criteria) {
   const bytes = new TextEncoder().encode(JSON.stringify(criteria));
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  // Build the binary string in a loop: spreading a large array into fromCharCode overflows the stack.
+  let binary = '';
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function decodeShare(token) {
@@ -367,8 +379,9 @@ function initialCriteria() {
   try { return sanitizeCriteria(JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}')); } catch { return {}; }
 }
 
-form.addEventListener('input', refresh);
-form.addEventListener('change', refresh);
+const onEdit = () => { holdingEmailCriteria = false; refresh(); };
+form.addEventListener('input', onEdit);
+form.addEventListener('change', onEdit);
 form.addEventListener('submit', (e) => e.preventDefault());
 document.getElementById('clear-form').addEventListener('click', () => writeCriteria({}));
 document.getElementById('share').addEventListener('click', shareLink);
@@ -389,7 +402,7 @@ createSimilar({
   root: document.getElementById('similar'),
   toast,
   onApply: (criteria) => {
-    writeCriteria(criteria);
+    writeCriteria(criteria, { fromEmail: true });
     document.getElementById('outputs').scrollIntoView({ behavior: 'smooth', block: 'start' });
   },
 });

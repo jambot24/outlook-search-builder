@@ -6,6 +6,8 @@ export const EXPORT_FORMAT = 'outlook-search-builder';
 export const EXPORT_VERSION = 1;
 const MAX_NAME_LENGTH = 120;
 const MAX_IMPORT_ITEMS = 1000;
+// Generous enough for long address lists; only guards against absurd input from files and links.
+const MAX_FIELD_LENGTH = 20000;
 
 export function loadSaved(storage) {
   try {
@@ -100,7 +102,7 @@ export function sanitizeCriteria(criteria) {
   const out = {};
   for (const [k, v] of Object.entries(criteria || {})) {
     if (/^[a-zA-Z0-9]{1,40}$/.test(k) && (typeof v === 'string' || typeof v === 'number')) {
-      out[k] = String(v).slice(0, 500);
+      out[k] = String(v).slice(0, MAX_FIELD_LENGTH);
     }
   }
   return out;

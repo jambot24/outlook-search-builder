@@ -6,6 +6,9 @@ import { typeForExtension, labelFor } from './filetypes.js';
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WINDOW_DAYS = 7;
+// Caps that keep a crafted file from freezing the page. Real headers and bodies are far smaller.
+const MAX_HEADER_CHARS = 16 * 1024;
+const MAX_HTML_CHARS = 256 * 1024;
 
 // ---------- .eml (RFC 5322 / MIME) ----------
 
@@ -14,6 +17,32 @@ function decodeBytes(bytes, charset = 'utf-8') {
     return new TextDecoder(charset.toLowerCase(), { fatal: false }).decode(bytes);
   } catch {
     return new TextDecoder('utf-8').decode(bytes);
+  }
+}
+
+// The file is held as a "binary string": one character per byte (codes 0-255).
+export function bytesToBinary(bytes) {
+  let out = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) out += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  return out;
+}
+
+function binaryToBytes(str) {
+  const out = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i += 1) out[i] = str.charCodeAt(i) & 0xff;
+  return out;
+}
+
+// Unencoded 8-bit text: use the declared charset, otherwise UTF-8 if it is valid, otherwise Windows-1252.
+function decodeRaw(str, charset) {
+  if (!/[\x80-\xff]/.test(str)) return str;
+  const bytes = binaryToBytes(str);
+  if (charset) return decodeBytes(bytes, charset);
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return decodeBytes(bytes, 'windows-1252');
   }
 }
 
@@ -35,26 +64,44 @@ function qpToBytes(s, { header = false } = {}) {
       out.push(parseInt(hex, 16));
       i += 2;
     } else {
-      const code = text.charCodeAt(i);
-      if (code < 128) out.push(code);
-      else out.push(...new TextEncoder().encode(text[i]));
+      out.push(text.charCodeAt(i) & 0xff);
     }
   }
   return new Uint8Array(out);
 }
 
 // RFC 2047 encoded words: =?charset?B|Q?text?=
+// Adjacent encoded words in the same charset are decoded together, because a multi-byte
+// character may be split across them.
 export function decodeHeaderValue(value) {
-  return String(value ?? '')
-    .replace(/\?=\s+=\?/g, '?==?')
-    .replace(/=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g, (_, charset, enc, text) => {
-      const bytes = enc.toUpperCase() === 'B' ? base64ToBytes(text) : qpToBytes(text, { header: true });
-      return decodeBytes(bytes, charset.replace(/\*.*$/, ''));
-    });
+  const raw = decodeRaw(String(value ?? ''));
+  const re = /=\?([^?\s]+)\?([BbQq])\?([^?\s]*)\?=(?:\s+(?==\?))?/g;
+  let out = '';
+  let last = 0;
+  let pending = null; // { charset, bytes: [] }
+  const flush = () => {
+    if (pending) out += decodeBytes(new Uint8Array(pending.bytes), pending.charset);
+    pending = null;
+  };
+  let m;
+  while ((m = re.exec(raw))) {
+    if (m.index > last) { flush(); out += raw.slice(last, m.index); }
+    const charset = m[1].replace(/\*.*$/, '').toLowerCase();
+    const bytes = m[2].toUpperCase() === 'B' ? base64ToBytes(m[3]) : qpToBytes(m[3], { header: true });
+    if (pending && pending.charset !== charset) flush();
+    if (!pending) pending = { charset, bytes: [] };
+    for (const b of bytes) pending.bytes.push(b);
+    last = re.lastIndex;
+  }
+  flush();
+  return out + raw.slice(last);
 }
 
 // Returns [headersMap, body]. Header names are lower-cased; repeated headers keep the first value.
 function splitHeaders(raw) {
+  // A part that starts with a blank line has no headers at all.
+  const empty = /^\r?\n/.exec(raw);
+  if (empty) return [new Map(), raw.slice(empty[0].length)];
   const m = /\r?\n\r?\n/.exec(raw);
   const head = m ? raw.slice(0, m.index) : raw;
   const body = m ? raw.slice(m.index + m[0].length) : '';
@@ -63,7 +110,7 @@ function splitHeaders(raw) {
     const i = line.indexOf(':');
     if (i <= 0) continue;
     const name = line.slice(0, i).trim().toLowerCase();
-    if (!headers.has(name)) headers.set(name, line.slice(i + 1).trim());
+    if (!headers.has(name)) headers.set(name, line.slice(i + 1, i + 1 + MAX_HEADER_CHARS).trim());
   }
   return [headers, body];
 }
@@ -96,7 +143,7 @@ function decodePartBody(body, encoding, charset) {
   const enc = String(encoding || '').toLowerCase();
   if (enc === 'base64') return decodeBytes(base64ToBytes(body), charset);
   if (enc === 'quoted-printable') return decodeBytes(qpToBytes(body), charset);
-  return body;
+  return decodeRaw(body, charset);
 }
 
 const MAX_PARTS = 200;
@@ -128,18 +175,49 @@ function walkMime(raw, acc, depth = 0) {
   }
   const text = decodePartBody(body, headers.get('content-transfer-encoding'), type.params.charset);
   if (type.value === 'text/plain' && !acc.text) acc.text = text.trim();
-  if (type.value === 'text/html' && !acc.html) acc.html = text;
+  if (type.value === 'text/html' && !acc.html) acc.html = text.slice(0, MAX_HTML_CHARS);
 }
 
 // "Jane Doe" <jane@contoso.com>, bob@x.com  ->  [{ name, address }]
+// A single pass over the characters: commas inside quotes or <...> do not split, and group
+// syntax ("Team: a@x.com, b@x.com;") is unwrapped.
 export function parseAddressList(value) {
+  const s = decodeHeaderValue(value).slice(0, MAX_HEADER_CHARS);
+  const pieces = [];
+  let cur = '';
+  let inQuote = false;
+  let inAngle = false;
+  for (const ch of s) {
+    if (ch === '"' && !inAngle) inQuote = !inQuote;
+    else if (ch === '<' && !inQuote) inAngle = true;
+    else if (ch === '>' && !inQuote) inAngle = false;
+    if ((ch === ',' || ch === ';') && !inQuote && !inAngle) {
+      pieces.push(cur);
+      cur = '';
+    } else if (ch === ':' && !inQuote && !inAngle && !cur.includes('@')) {
+      cur = ''; // group label
+    } else {
+      cur += ch;
+    }
+  }
+  pieces.push(cur);
+
   const out = [];
-  const s = decodeHeaderValue(value);
-  const re = /(?:(?:"([^"]*)"|([^"<,]*?))\s*<([^>]+)>)|([^\s,<>"]+@[^\s,<>"]+)/g;
-  let m;
-  while ((m = re.exec(s))) {
-    const address = (m[3] || m[4] || '').trim().toLowerCase();
-    if (address.includes('@')) out.push({ name: (m[1] ?? m[2] ?? '').trim(), address });
+  for (const piece of pieces) {
+    const p = piece.trim();
+    if (!p) continue;
+    const lt = p.lastIndexOf('<');
+    const gt = p.lastIndexOf('>');
+    let address;
+    let name = '';
+    if (lt >= 0 && gt > lt) {
+      address = p.slice(lt + 1, gt);
+      name = p.slice(0, lt).trim().replace(/^"(.*)"$/, '$1').trim();
+    } else {
+      address = p.split(/\s+/).find((w) => w.includes('@')) || '';
+    }
+    address = address.trim().replace(/^["']|["']$/g, '').toLowerCase();
+    if (/^[^\s@]+@[^\s@]+$/.test(address)) out.push({ name, address });
   }
   return out;
 }
@@ -162,9 +240,24 @@ export function parseEml(raw) {
   };
 }
 
+function stripBlocks(html, tag) {
+  // indexOf-based, so an unclosed <style> costs one scan instead of one scan per occurrence.
+  const lower = html.toLowerCase();
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const start = lower.indexOf(`<${tag}`, i);
+    if (start < 0) return out + html.slice(i);
+    out += `${html.slice(i, start)} `;
+    const end = lower.indexOf(`</${tag}>`, start);
+    if (end < 0) return out;
+    i = end + tag.length + 3;
+  }
+}
+
 function htmlToText(html) {
-  return String(html || '').replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  const text = stripBlocks(stripBlocks(String(html || '').slice(0, MAX_HTML_CHARS), 'style'), 'script');
+  return text.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 }
 
 // ---------- .msg (Outlook compound file) ----------
@@ -211,8 +304,9 @@ export async function readEmailFile(file) {
   const isMsg = bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0;
   if (isMsg) return parseMsg(buffer);
   if (name.endsWith('.msg')) throw new Error('That .msg file is damaged or not an Outlook message.');
-  // Latin-1 keeps every byte, so encoded parts decode correctly later.
-  const raw = new TextDecoder('latin1').decode(bytes);
+  // One character per byte, so each part can be decoded with its own charset later.
+  // (TextDecoder('latin1') is really Windows-1252 in browsers and would alter bytes 0x80-0x9F.)
+  const raw = bytesToBinary(bytes);
   if (!/^[\w-]+:/m.test(raw.slice(0, 2000))) throw new Error('That does not look like an email. Drop an .eml or .msg file.');
   return parseEml(raw);
 }
@@ -227,23 +321,31 @@ export function normalizeSubject(subject) {
   do {
     prev = s;
     s = s.replace(/^\s*((re|fw|fwd|aw|wg|sv|vs|tr|rif|antw)\s*(\[\d+\])?\s*:\s*)+/i, '').trim();
+    s = s.replace(/^\s*\[(ext|external|extern|external email|caution|spam|suspicious)[^\]]*\]\s*/i, '').trim();
   } while (s !== prev);
   return s.replace(/\s+/g, ' ');
 }
 
 // The stable part of a subject that carries numbers, e.g. "Invoice 48213 from Contoso" -> "Invoice".
 export function subjectPattern(subject) {
-  const words = normalizeSubject(subject).replace(/[[\](){}#:|]/g, ' ').split(/\s+/).filter(Boolean);
-  const firstDigit = words.findIndex((w) => /\d/.test(w));
-  if (firstDigit < 0) return '';
-  const before = words.slice(0, firstDigit);
-  const after = words.slice(firstDigit + 1).filter((w) => !/\d/.test(w));
-  const pick = before.length ? before : after;
+  const words = normalizeSubject(subject).replace(/[[\](){}#:|]/g, ' ').split(/\s+/)
+    .filter((w) => /[\p{L}\d]/u.test(w));
+  if (!words.some((w) => /\d/.test(w))) return '';
+  // The first run of adjacent words with no digits, so the phrase can match the real subject.
+  const runs = [];
+  let run = [];
+  for (const w of words) {
+    if (/\d/.test(w)) { if (run.length) runs.push(run); run = []; } else run.push(w);
+  }
+  if (run.length) runs.push(run);
+  const pick = runs[0] || [];
   return pick.slice(0, 5).join(' ');
 }
 
+// Local calendar day, matching the date shown in the label.
 function isoDay(date, offsetDays) {
-  return new Date(date.getTime() + offsetDays * DAY_MS).toISOString().slice(0, 10);
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function extension(name) {

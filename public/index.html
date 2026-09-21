@@ -123,7 +123,7 @@
           <label class="field" data-show="between">And
             <input type="date" name="date2">
           </label>
-          <label class="field" data-show="on after before between">Date format
+          <label class="field" data-show="preset within older ago on after before between">Date format
             <select name="dateFormat">
               <option value="mdy">MM/DD/YYYY (US)</option>
               <option value="dmy">DD/MM/YYYY (UK, EU, AU)</option>
@@ -164,7 +164,7 @@
                 <option value=">">Larger than</option>
                 <option value="<">Smaller than</option>
               </select>
-              <input type="number" name="sizeMb" min="0" step="0.1" placeholder="MB">
+              <input type="number" name="sizeMb" min="0" step="0.1" placeholder="MB" aria-label="Size in MB" disabled>
             </div>
           </label>
         </div>

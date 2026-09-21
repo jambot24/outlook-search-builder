@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  bytesToBinary,
   parseEml, decodeHeaderValue, parseAddressList, normalizeSubject, subjectPattern,
   suggestionsFor, headerFacts, combine, fromMsgData, readEmailFile, MAX_FILE_BYTES,
 } from '../public/js/email.js';
@@ -150,4 +151,53 @@ test('readEmailFile rejects big, fake and non-email files', async () => {
   await assert.rejects(readEmailFile(fake([...new TextEncoder().encode('just some text')], 'x.eml')), /does not look like an email/);
   const ok = await readEmailFile(fake([...new TextEncoder().encode(EML)], 'x.eml'));
   assert.equal(ok.from.address, 'billing@contoso.com');
+});
+
+// ---------- regressions from the 2026-09-21 bug hunt ----------
+
+const utf8 = (t) => bytesToBinary(new TextEncoder().encode(t));
+
+test('8-bit UTF-8 headers and bodies decode correctly', () => {
+  const e = parseEml(utf8('Subject: Café résumé – €\r\nFrom: Zoë <zoe@x.com>\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\nCafé €'));
+  assert.equal(e.subject, 'Café résumé – €');
+  assert.equal(e.from.name, 'Zoë');
+  assert.equal(e.bodyText, 'Café €');
+});
+
+// ISO-8859-2 rather than Windows-1252: Node's TextDecoder treats windows-1252 as Latin-1, browsers do not.
+test('8-bit body in a declared single-byte charset decodes', () => {
+  const bytes = new Uint8Array([...new TextEncoder().encode('Content-Type: text/plain; charset=iso-8859-2\r\n\r\nmiasto '), 0xa3, 0xf3, 0x64, 0xbc]);
+  assert.equal(parseEml(bytesToBinary(bytes)).bodyText, 'miasto Łódź');
+});
+
+test('encoded words split inside a character join up', () => {
+  assert.equal(decodeHeaderValue('=?utf-8?Q?=C3?= =?utf-8?Q?=A9?='), 'é');
+});
+
+test('address groups and undisclosed recipients parse', () => {
+  assert.deepEqual(parseAddressList('Team: a@x.com, b@x.com; undisclosed-recipients:;').map((a) => a.address), ['a@x.com', 'b@x.com']);
+});
+
+test('a MIME part with no headers keeps its body', () => {
+  const e = parseEml('Content-Type: multipart/mixed; boundary=B\r\n\r\n--B\r\n\r\nplain body\r\n--B--');
+  assert.equal(e.bodyText, 'plain body');
+});
+
+test('crafted input does not blow up parsing time', () => {
+  const t = Date.now();
+  parseAddressList('a'.repeat(200000));
+  parseEml(`Content-Type: text/html\r\n\r\n${'<style>'.repeat(300000)}`);
+  assert.ok(Date.now() - t < 1000, `took ${Date.now() - t} ms`);
+});
+
+test('external-sender tags are stripped and subject patterns use adjacent words', () => {
+  assert.equal(normalizeSubject('[EXT] RE: [EXTERNAL] FW: Invoice 48213'), 'Invoice 48213');
+  assert.equal(subjectPattern('2024-05-01 Weekly report 3 of 5 final'), 'Weekly report');
+  assert.equal(subjectPattern('#4471 Server down alert 2 critical'), 'Server down alert');
+});
+
+test('find-similar date window is in local days around the label date', () => {
+  const d = new Date(2026, 2, 10, 23, 30);
+  const s = suggestionsFor({ date: d, headers: new Map() }).find((x) => x.id === 'date-window');
+  assert.deepEqual([s.criteria.date1, s.criteria.date2], ['2026-03-03', '2026-03-17']);
 });

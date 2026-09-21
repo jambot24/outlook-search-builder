@@ -266,3 +266,33 @@ test('domains in people fields become bare domains with a note', async () => {
   assert.equal(r.warnings.length, 1);
   assert.deepEqual(splitList('a.com\nb.com'), ['a.com', 'b.com']);
 });
+
+// ---------- regressions from the 2026-09-21 bug hunt ----------
+
+test('operator words and leading minus inside word chips stay literal', () => {
+  assert.equal(render('modern', { allWords: 'cats OR dogs' }).query, 'cats AND "OR" AND dogs');
+  assert.equal(render('modern', { allWords: '-draft report' }).query, 'draft AND report');
+  assert.equal(render('modern', { noneWords: '-foo' }).query, '-foo');
+  assert.equal(render('classic', { anyWords: 'NOT spam' }).query, '("NOT" OR spam)');
+});
+
+test('participants domains are normalised with the domain note', () => {
+  const r = render('modern', { participants: '@Contoso.com' });
+  assert.equal(r.query, 'participants:contoso.com');
+  assert.equal(r.warnings.length, 1);
+  assert.equal(render('classic', { participants: '@Contoso.com' }).query, '(from:contoso.com OR to:contoso.com OR cc:contoso.com)');
+});
+
+test('empty or out-of-range days and sizes are ignored consistently', async () => {
+  const { validDays, validSizeMb } = await import('../public/js/query.js');
+  assert.equal(validDays(''), null);
+  assert.equal(validDays('0'), null);
+  assert.equal(validDays('0', { min: 0 }), 0);
+  assert.equal(validDays('2.5'), null);
+  assert.equal(validDays('4000'), null);
+  assert.equal(validSizeMb({ sizeOp: '<', sizeMb: '0' }), null);
+  assert.equal(validSizeMb({ sizeOp: '>', sizeMb: '-1' }), null);
+  assert.equal(validSizeMb({ sizeOp: '>', sizeMb: '' }), null);
+  assert.equal(render('modern', { dateMode: 'ago', days: '', days2: '' }).query, '');
+  assert.equal(render('modern', { sizeOp: '<', sizeMb: '0' }).query, '');
+});

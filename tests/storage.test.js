@@ -102,3 +102,8 @@ test('CSV export quotes, escapes and neutralises formula cells', () => {
   assert.equal(lines[0], 'Name,Saved,Outlook Classic,New Outlook / Web,Outlook for Mac,Outlook mobile');
   assert.equal(lines[1], `"Say ""hi"", =SUM",${NOW.toISOString()},'=cmd,from:a,"a,b",`);
 });
+
+test('long field values survive sanitising (40 addresses)', () => {
+  const from = Array.from({ length: 40 }, (_, i) => `person${i}@example.com`).join(', ');
+  assert.equal(sanitizeCriteria({ from }).from, from);
+});
