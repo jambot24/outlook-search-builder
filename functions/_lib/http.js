@@ -42,6 +42,7 @@ export async function readJson(request) {
 // Wraps a handler so known errors become clean responses and unknown ones are logged, not leaked.
 export function handle(fn) {
   return async (context) => {
+    if (!context.env?.DB) return errorResponse(503, 'Community features are not switched on yet.');
     try {
       return await fn(context);
     } catch (err) {

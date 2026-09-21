@@ -286,3 +286,10 @@ test('routes: bad JSON and wrong content type are 400, not 500', async () => {
   const plain = new Request('https://example.test/api/vote', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: 'x' });
   assert.equal((await voteRoute.onRequestPost({ request: plain, env: env() })).status, 400);
 });
+
+test('routes: 503 with a clear message when the database is not bound', async () => {
+  const request = new Request('https://example.test/api/searches');
+  const res = await searchesRoute.onRequestGet({ request, env: {} });
+  assert.equal(res.status, 503);
+  assert.match((await res.json()).error, /not switched on/);
+});
