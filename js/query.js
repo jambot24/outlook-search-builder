@@ -65,6 +65,7 @@ function wordParts(c, engine) {
   if (quote(c.phrase)) parts.push(`"${quote(c.phrase).replace(/"/g, '')}"`);
   parts.push(orGroup(words(c.anyWords)));
   const exclude = words(c.noneWords);
+  // Classic joins with AND, so "AND NOT word" reads correctly there.
   parts.push(...exclude.map((w) => (engine === 'classic' ? `NOT ${w}` : `-${w}`)));
   return parts;
 }
@@ -149,11 +150,8 @@ function dateParts(c, engine, warn) {
 function statusParts(c, engine, warn) {
   const parts = [];
   if (c.read === 'yes' || c.read === 'no') {
-    if (engine === 'classic') parts.push(`read:${c.read}`);
-    else {
-      parts.push(`isread:${c.read}`);
-      warn('isread: is not documented here. If it returns nothing, use the Unread filter instead.');
-    }
+    parts.push(`read:${c.read}`);
+    if (engine !== 'classic') warn('read: is documented for Outlook on Windows but not in the web and Mac keyword table. If it returns nothing, use the Unread filter instead.');
   }
   if (c.flagged === 'yes') parts.push(engine === 'classic' ? 'hasflag:true' : 'isflagged:yes');
   if (['high', 'normal', 'low'].includes(c.importance)) {
@@ -163,12 +161,9 @@ function statusParts(c, engine, warn) {
   if (quote(c.category)) parts.push(`category:${quote(c.category)}`);
   const mb = Number(c.sizeMb);
   if ((c.sizeOp === '>' || c.sizeOp === '<') && c.sizeMb !== '' && c.sizeMb != null && Number.isFinite(mb) && mb >= 0) {
-    if (engine === 'classic') {
-      const size = mb < 1 ? `${Math.round(mb * KB_PER_MB)} KB` : `${+mb.toFixed(1)} MB`;
-      parts.push(`messagesize:${c.sizeOp}${size}`);
-    } else {
-      warn('Size searches are only supported in Outlook Classic, so size was left out.');
-    }
+    const size = mb < 1 ? `${Math.round(mb * KB_PER_MB)} KB` : `${+mb.toFixed(1)} MB`;
+    parts.push(`messagesize:${c.sizeOp}${size}`);
+    if (engine !== 'classic') warn('messagesize: is documented for Outlook on Windows but not in the web and Mac keyword table. If it returns nothing, sort the message list by size instead.');
   }
   return parts;
 }
@@ -194,7 +189,8 @@ export function render(clientKey, criteria) {
     ...statusParts(c, engine, warn),
   ].filter(Boolean);
 
-  const result = { query: parts.join(' '), warnings, scope: scopeText(c) };
+  // Explicit AND: Microsoft's Windows and web/Mac references treat bare spaces differently.
+  const result = { query: parts.join(' AND '), warnings, scope: scopeText(c) };
 
   if (clientKey === 'mobile' && result.query) {
     result.fallback = [

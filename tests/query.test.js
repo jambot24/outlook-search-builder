@@ -24,8 +24,8 @@ test('splitList splits on commas and semicolons and drops blanks', () => {
 
 test('words: all, phrase, any and none render per client', () => {
   const c = { allWords: 'invoice overdue', phrase: 'quarterly report', anyWords: 'contract agreement', noneWords: 'newsletter' };
-  assert.equal(render('classic', c).query, 'invoice overdue "quarterly report" (contract OR agreement) NOT newsletter');
-  assert.equal(render('modern', c).query, 'invoice overdue "quarterly report" (contract OR agreement) -newsletter');
+  assert.equal(render('classic', c).query, 'invoice AND overdue AND "quarterly report" AND (contract OR agreement) AND NOT newsletter');
+  assert.equal(render('modern', c).query, 'invoice AND overdue AND "quarterly report" AND (contract OR agreement) AND -newsletter');
 });
 
 test('single sender has no parentheses, several senders are ORed in a group', () => {
@@ -111,21 +111,21 @@ test('between with a missing second date warns and emits nothing', () => {
 
 test('status keywords differ between classic and modern', () => {
   const c = { read: 'no', flagged: 'yes' };
-  assert.equal(render('classic', c).query, 'read:no hasflag:true');
+  assert.equal(render('classic', c).query, 'read:no AND hasflag:true');
   const m = render('modern', c);
-  assert.equal(m.query, 'isread:no isflagged:yes');
-  assert.equal(m.warnings.length, 1); // isread is not documented; isflagged is
+  assert.equal(m.query, 'read:no AND isflagged:yes');
+  assert.equal(m.warnings.length, 1); // read: is documented for Windows only; isflagged is in the web/Mac table
 });
 
 test('category names with spaces are quoted', () => {
   assert.equal(render('modern', { category: 'Trade Show' }).query, 'category:"Trade Show"');
 });
 
-test('size is supported on classic only', () => {
+test('size is emitted everywhere, with a warning outside classic', () => {
   assert.equal(render('classic', { sizeOp: '>', sizeMb: '5' }).query, 'messagesize:>5 MB');
   assert.equal(render('classic', { sizeOp: '<', sizeMb: '0.5' }).query, 'messagesize:<512 KB');
   const m = render('modern', { sizeOp: '>', sizeMb: '5' });
-  assert.equal(m.query, '');
+  assert.equal(m.query, 'messagesize:>5 MB');
   assert.equal(m.warnings.length, 1);
 });
 
@@ -139,7 +139,7 @@ test('folder is never part of the query; it becomes a scope instruction', () => 
 
 test('mobile gets the modern query plus a plain keyword fallback', () => {
   const r = render('mobile', { from: 'jane', allWords: 'invoice', phrase: 'past due' });
-  assert.equal(r.query, 'invoice "past due" from:jane');
+  assert.equal(r.query, 'invoice AND "past due" AND from:jane');
   assert.equal(r.fallback, 'invoice "past due" jane');
   assert.ok(r.warnings.length >= 1);
 });

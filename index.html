@@ -202,6 +202,21 @@
           </ul>
         </details>
       </div>
+
+      <div class="panel">
+        <details class="help">
+          <summary>If a search finds nothing</summary>
+          <ol>
+            <li><strong>Check the scope first.</strong> A correct query returns nothing when the search is limited to the wrong folder, mailbox or account. New Outlook cannot search several accounts at once, so select each account and search All folders.</li>
+            <li><strong>Start simple.</strong> Remove criteria one at a time until the message appears, then add them back.</li>
+            <li><strong>Use full email addresses</strong> instead of display names.</li>
+            <li><strong>Use numeric dates.</strong> Newer builds no longer accept weekday or month names such as "Tuesday" or "March".</li>
+            <li><strong>Check Deleted Items.</strong> Whether it is searched is a setting in each version of Outlook.</li>
+            <li><strong>Shared mailboxes in Outlook Classic:</strong> select the shared mailbox's folder and use Current folder. "All mailboxes" can return nothing for shared mailboxes.</li>
+            <li><strong>Outlook Classic only:</strong> under Search Tools &gt; Indexing Status, confirm indexing has finished. Then try the same query in Outlook on the web. If the web finds the message and Classic does not, the problem is the local search index, not the query.</li>
+          </ol>
+        </details>
+      </div>
     </section>
   </main>
 

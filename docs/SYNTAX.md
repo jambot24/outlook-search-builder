@@ -23,15 +23,18 @@ fallback.
 | Single date | D, Windows regional format | D, MM/DD/YYYY | U |
 | Date range | C, `>=` and `<=` | D, `date1..date2` | U |
 | category: | D. Matches names that contain the word | D. Quote names with spaces | U |
-| Unread | D, `read:no` | U, `isread:no` with a warning | U |
+| Unread | D, `read:no` | D for new Outlook for Windows (`read:no`). Not in the web/Mac table, so emitted with a warning | U |
 | Flagged | D, `hasflag:true` | D, `isflagged:yes` | U |
 | importance: | C | U. Emitted with a warning | U |
-| messagesize: | D, `messagesize:>5 MB` | Not supported. Left out with a warning | U |
+| messagesize: | D, `messagesize:>5 MB` | D for new Outlook for Windows, except the named sizes (tiny, small and so on). Not in the web/Mac table, so emitted with a warning | U |
 | Exclude a word | D, `NOT word` (uppercase) | D, `-word` | U |
 | OR | D (uppercase) | D | U |
 | Folder | No keyword. Use the scope dropdown | No keyword. Use the folder pane or Folders filter | No keyword |
 
 ## Rules the generator follows
+
+- **Terms are joined with an explicit `AND`.** Microsoft's Windows reference and its web/Mac
+  table describe bare spaces differently, and `AND` means the same thing in both.
 
 - **No space after a colon.** `from: jane` falls back to a full-text search on both engines.
 - **Values with spaces are quoted.** `from:"Bob Smith"`, `category:"Trade Show"`.
@@ -59,6 +62,12 @@ Microsoft documentation:
   https://support.microsoft.com/en-us/office/find-a-message-or-item-with-instant-search-69748862-5976-47b9-98e8-ed179f1b9e4d
 - Search made simple in Outlook mobile:
   https://support.microsoft.com/en-us/office/search-made-simple-in-outlook-mobile-07df353b-e866-4c49-9d7c-dbbdf00a9223
+
+Secondary sources:
+
+- "Definitive Outlook Search Guide" (Perplexity, 2026-09-21). It cites the same Microsoft
+  pages and was used to cross-check `read:`, `messagesize:`, explicit `AND` and the
+  troubleshooting list on the page.
 
 Community sources:
 
