@@ -5,6 +5,7 @@ import {
 } from './storage.js';
 import * as graph from './graph.js';
 import { createLibrary } from './community.js';
+import { createSimilar } from './similar.js';
 import { explain } from './explain.js';
 import { CATEGORIES } from './library.js';
 import { DESCRIPTION_MAX_LENGTH, el } from './dom.js';
@@ -358,6 +359,14 @@ importInput.addEventListener('change', () => {
 
 fillCommonFolders();
 setupFooter();
+createSimilar({
+  root: document.getElementById('similar'),
+  toast,
+  onApply: (criteria) => {
+    writeCriteria(criteria);
+    document.getElementById('outputs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+});
 setupCommunity();
 writeCriteria(initialCriteria());
 renderSaved();

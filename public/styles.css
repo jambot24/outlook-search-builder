@@ -252,3 +252,31 @@ button.small { font-size: 13px; }
 .turnstile { margin-top: 10px; }
 footer p { margin: 6px 0; }
 footer a { color: var(--accent); }
+
+/* ---------- find similar ---------- */
+.drop-zone {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  border: 2px dashed var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;
+  cursor: pointer; font-size: 14px; color: var(--muted);
+}
+.drop-zone strong { color: var(--text); font-size: 15px; }
+.drop-zone:hover, .drop-zone:focus-visible { border-color: var(--accent); outline: none; }
+.drop-zone.busy { opacity: .6; cursor: progress; }
+.drop-overlay {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 18%, transparent); backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+.drop-overlay > div {
+  background: var(--surface); color: var(--text); border: 2px dashed var(--accent);
+  border-radius: 14px; padding: 28px 36px; font-size: 18px; font-weight: 600;
+}
+.similar { border: 1px solid var(--accent); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+.similar-head { display: flex; justify-content: space-between; align-items: center; }
+.similar-summary { margin: 6px 0 10px; font-size: 14px; overflow-wrap: anywhere; }
+.suggestions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.suggestions li { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+.suggestions input { width: 18px; height: 18px; margin: 1px 0 0; flex-shrink: 0; }
+.suggestions label { overflow-wrap: anywhere; }
+.facts ul { margin: 4px 0 0; padding-left: 20px; font-size: 13px; }
+.facts p { margin: 12px 0 0; }
