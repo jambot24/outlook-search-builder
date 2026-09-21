@@ -1,0 +1,53 @@
+name: Query result report
+description: Tell us whether a generated query worked in your copy of Outlook.
+title: "[Query] "
+labels: ["query-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These reports are how we confirm which keywords work in each version. Please do not
+        paste real names, addresses or message content. Replace them with placeholders such as
+        jane@contoso.com.
+  - type: dropdown
+    id: version
+    attributes:
+      label: Outlook version
+      options:
+        - Outlook Classic for Windows
+        - New Outlook for Windows
+        - Outlook on the web
+        - Outlook for Mac (new)
+        - Outlook for Mac (legacy)
+        - Outlook for iOS
+        - Outlook for Android
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Version or build number
+      description: "Classic: File > Office Account > About Outlook. Mac: Outlook > About Outlook."
+  - type: textarea
+    id: query
+    attributes:
+      label: The query you pasted
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: What happened
+      options:
+        - It found the right messages
+        - It found nothing, though matching messages exist
+        - It found the wrong messages
+        - Outlook showed an error or ignored part of it
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Which part seemed to be ignored, and anything that made it work.

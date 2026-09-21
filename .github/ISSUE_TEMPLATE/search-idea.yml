@@ -1,0 +1,32 @@
+name: Built-in search idea
+description: Suggest a search for the library.
+title: "[Search] "
+labels: ["built-in-search"]
+body:
+  - type: input
+    id: goal
+    attributes:
+      label: What should it find?
+      placeholder: Invoices from vendors that I have not opened
+    validations:
+      required: true
+  - type: textarea
+    id: query
+    attributes:
+      label: A query that works for you (optional)
+      render: text
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Inbox zero
+        - Cleanup & storage
+        - Follow-up
+        - Invoices & finance
+        - Security & accounts
+        - Newsletters & marketing
+        - Orders & shipping
+        - Attachments & file sharing
+        - Meetings & scheduling
+        - Other

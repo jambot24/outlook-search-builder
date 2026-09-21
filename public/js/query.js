@@ -33,8 +33,15 @@ export function quote(value) {
 }
 
 export function splitList(value) {
-  return String(value ?? '').split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+  return String(value ?? '').split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
 }
+
+// "contoso.com" or "@contoso.com": a whole domain rather than one address or name.
+export function isDomain(value) {
+  return /^@?[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/i.test(String(value ?? '').trim());
+}
+
+const DOMAIN_NOTE = 'Matching everyone at a domain (from:contoso.com) is widely used but not documented by Microsoft. If it returns nothing, use a full address.';
 
 // Splits on spaces but keeps "quoted phrases" together: 'unsubscribe "opt out"' -> ['unsubscribe', '"opt out"'].
 export function words(value) {
@@ -104,7 +111,11 @@ function orGroup(terms) {
 }
 
 function keywordTerms(keyword, value, engine, warn) {
-  return splitList(value).map((v) => term(v, engine, warn)).filter(Boolean).map((v) => `${keyword}:${v}`);
+  return splitList(value).map((v) => {
+    if (!isDomain(v)) return term(v, engine, warn);
+    warn(DOMAIN_NOTE);
+    return v.replace(/^@/, '').toLowerCase();
+  }).filter(Boolean).map((v) => `${keyword}:${v}`);
 }
 
 function wordParts(c, engine, warn = () => {}) {

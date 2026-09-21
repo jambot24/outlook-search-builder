@@ -9,5 +9,5 @@ window.OSB_CONFIG = {
   turnstileSiteKey: '',
   repoUrl: 'https://github.com/jambot24/outlook-search-builder',
   // Empty hides the link.
-  coffeeUrl: '',
+  coffeeUrl: 'https://buymeacoffee.com/kevinspellman',
 };

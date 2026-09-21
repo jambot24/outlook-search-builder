@@ -52,3 +52,7 @@ test('file types and phrases are described', () => {
 test('days-ago window is described', () => {
   assert.equal(explain({ dateMode: 'ago', days: '14', days2: '7' }), 'Finds messages received between 7 and 14 days ago.');
 });
+
+test('domains read as anyone at the domain', () => {
+  assert.equal(explain({ from: '@Contoso.com, jane@x.com' }), 'Finds messages from anyone at contoso.com or jane@x.com.');
+});

@@ -254,3 +254,15 @@ test('between N and M days ago is a date range in either order', () => {
   assert.equal(render('classic', { dateMode: 'ago', days: '14', days2: '7' }, { now }).query, 'received:>=9/7/2026 AND received:<=9/14/2026');
   assert.equal(render('modern', { dateMode: 'ago', days: '7' }, { now }).query, '');
 });
+
+test('domains in people fields become bare domains with a note', async () => {
+  const { isDomain } = await import('../public/js/query.js');
+  assert.equal(isDomain('contoso.com'), true);
+  assert.equal(isDomain('@Mail.Contoso.co.uk'), true);
+  assert.equal(isDomain('jane@contoso.com'), false);
+  assert.equal(isDomain('Bob Smith'), false);
+  const r = render('modern', { from: '@Contoso.com, fabrikam.com, jane@x.com' });
+  assert.equal(r.query, '(from:contoso.com OR from:fabrikam.com OR from:jane@x.com)');
+  assert.equal(r.warnings.length, 1);
+  assert.deepEqual(splitList('a.com\nb.com'), ['a.com', 'b.com']);
+});

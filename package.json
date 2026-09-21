@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Build Outlook search queries for Classic, new Outlook, Mac and mobile.",
+  "description": "Build Outlook search queries for Classic, new Outlook, the web, Mac and mobile.",
   "scripts": {
     "test": "node --test --experimental-test-coverage tests/",
     "serve": "npx --yes serve -l 8788 public",
@@ -17,5 +17,17 @@
     "safer-buffer": "^2.1.2",
     "string_decoder": "^1.3.0",
     "wrangler": "^4.86.0"
-  }
+  },
+  "homepage": "https://outlook-search-builder.pages.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jambot24/outlook-search-builder.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jambot24/outlook-search-builder/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "author": "Kevin Spellman"
 }

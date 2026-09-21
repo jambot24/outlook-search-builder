@@ -1,7 +1,7 @@
 // Plain-English description of what a set of criteria finds.
 // Shown under the generated queries and under every library search.
 
-import { splitList, words } from './query.js';
+import { splitList, words, isDomain } from './query.js';
 import { parseFileTypes, labelFor } from './filetypes.js';
 
 function list(items, joiner = 'or') {
@@ -10,7 +10,7 @@ function list(items, joiner = 'or') {
 }
 
 function people(value) {
-  return list(splitList(value));
+  return list(splitList(value).map((v) => (isDomain(v) ? `anyone at ${v.replace(/^@/, '').toLowerCase()}` : v)));
 }
 
 function wordsOf(value) {

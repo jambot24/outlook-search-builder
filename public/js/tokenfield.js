@@ -3,7 +3,7 @@
 //   mode "list":  people fields, stored as "a@x.com, Bob Smith"
 //   mode "words": word fields, stored as 'invoice "past due"' (phrases quoted)
 
-import { splitList, words } from './query.js';
+import { splitList, words, isDomain } from './query.js';
 import { el } from './dom.js';
 
 function parse(mode, value) {
@@ -41,9 +41,18 @@ export function enhanceTokenField(hidden) {
     input.placeholder = tokens.length ? '' : (hidden.dataset.placeholder || '');
   }
 
+  // A pasted list of addresses or domains may be separated by spaces or new lines instead of commas.
+  function splitPeople(text) {
+    return splitList(text).flatMap((part) => {
+      const pieces = part.split(/\s+/).filter(Boolean);
+      const allAddresses = pieces.length > 1 && pieces.every((p) => isDomain(p) || /^[^\s@]+@[^\s@]+$/.test(p));
+      return allAddresses ? pieces : [part];
+    }).map((p) => (isDomain(p) ? p.replace(/^@/, '').toLowerCase() : p));
+  }
+
   function commit(text) {
     const fresh = mode === 'list'
-      ? splitList(text)
+      ? splitPeople(text)
       : [String(text).replace(/"/g, '').trim().replace(/\s+/g, ' ')].filter(Boolean);
     const added = fresh.filter((t) => !tokens.some((x) => x.toLowerCase() === t.toLowerCase()));
     if (!added.length) return false;
@@ -65,7 +74,7 @@ export function enhanceTokenField(hidden) {
   });
   input.addEventListener('paste', (e) => {
     const text = e.clipboardData?.getData('text') || '';
-    if (mode === 'list' && /[,;\n]/.test(text)) {
+    if (mode === 'list' && /[,;\n\s]/.test(text.trim())) {
       e.preventDefault();
       commit(text.replace(/\n/g, ','));
     }
