@@ -77,3 +77,46 @@ Community sources:
   https://learn.microsoft.com/en-us/answers/questions/4708646/new-outlook-folder-path-search
 - followupflag and importance in classic: https://www.ablebits.com/office-addins-blog/search-filter-emails-outlook/
 - attachment: in classic: https://www.extendoffice.com/documents/outlook/1471-outlook-find-attachments-by-name.html
+
+## Dates
+
+Periods a client does not document are written out as a date range when the query is built,
+and saved searches keep the period name so they recalculate. Classic documents today,
+yesterday, this week, last week, last month and last year. The newer clients document today,
+yesterday, this week and last week. "In the last N days" and "More than N days ago" are always
+written as dates.
+
+## Search folders
+
+No Outlook version accepts typed search text in a search folder, so the tool maps each
+criterion to a dialog field instead. We compiled this on 2026-09-21 and have not checked
+it in a live client.
+
+- **Outlook Classic:** Folder tab > New Search Folder > "Create a custom Search Folder".
+  - The Criteria dialog has three tabs:
+    - **Messages:** words, In, From, Sent To, Where I am, Time.
+    - **More Choices:** categories, read or unread, attachments, importance, flag, size in KB.
+    - **Advanced:** field, condition, value.
+  - A custom folder covers one account or data file.
+  - Custom folders do not appear in new Outlook or on the web.
+  - Whether the words box treats several words as OR or honours quotes is not documented.
+  - Source: https://support.microsoft.com/en-us/office/use-search-folders-to-find-messages-or-other-outlook-items-c1807038-01e4-475e-8869-0ccab0a56dc5
+- **New Outlook and Outlook on the web:** only ready-made types are available.
+  - The types are: Unread; Flagged; Unread or flagged; Important; Sent directly to me; From
+    specific people; From and to specific people; Sent to public groups; Categorized; With
+    attachments; Large; Old; With specific words.
+  - Microsoft states that advanced custom search folders are supported only in classic Outlook.
+  - "From specific people" needs full addresses and rejects domains (community report).
+  - The tool picks the closest type and lists what it leaves out.
+  - Source: https://support.microsoft.com/en-us/outlook/how-to-use-search-folders-on-outlook
+- **Outlook for Mac:** search, add criteria in the filter panel, then Save Search.
+  - The saved search appears under Saved Searches.
+  - It stays on that Mac (community report).
+  - Source: https://support.microsoft.com/en-us/outlook/save-a-search-by-using-a-smart-folder-in-outlook-for-mac
+- **Outlook mobile:** there is no equivalent (community reports).
+
+## Sort and columns
+
+Search text cannot set sort order or columns in any client. Classic sets them through View
+settings. The newer clients offer only sort options above the message list. Library entries
+that benefit from a particular sort say so in their "Then" line.

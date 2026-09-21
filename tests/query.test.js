@@ -72,11 +72,35 @@ test('relative dates are quoted when they contain a space', () => {
   assert.equal(render('modern', { ...c, datePreset: 'today' }).query, 'received:today');
 });
 
-test('relative periods not documented for the new engine carry a warning', () => {
-  const r = render('modern', { dateMode: 'preset', datePreset: 'last year' });
-  assert.equal(r.query, 'received:"last year"');
-  assert.equal(r.warnings.length, 1);
-  assert.deepEqual(render('classic', { dateMode: 'preset', datePreset: 'last year' }).warnings, []);
+test('periods an engine does not document become exact ranges with a note, not a warning', () => {
+  const now = new Date(2026, 8, 21); // 21 Sep 2026, local time
+  const r = render('modern', { dateMode: 'preset', datePreset: 'last month' }, { now });
+  assert.equal(r.query, 'received:08/01/2026..08/31/2026');
+  assert.deepEqual(r.warnings, []);
+  assert.equal(r.notes.length, 1);
+  const c = render('classic', { dateMode: 'preset', datePreset: 'last month' }, { now });
+  assert.equal(c.query, 'received:"last month"');
+  assert.deepEqual(c.notes, []);
+  assert.equal(render('classic', { dateMode: 'preset', datePreset: 'this month' }, { now }).query, 'received:>=9/1/2026 AND received:<=9/30/2026');
+  assert.equal(render('modern', { dateMode: 'preset', datePreset: 'this year' }, { now }).query, 'received:01/01/2026..12/31/2026');
+  assert.equal(render('modern', { dateMode: 'preset', datePreset: 'last year' }, { now }).query, 'received:01/01/2025..12/31/2025');
+});
+
+test('presetRange handles January rollover', async () => {
+  const { presetRange } = await import('../public/js/query.js');
+  assert.deepEqual(presetRange('last month', new Date(2026, 0, 15)), ['2025-12-01', '2025-12-31']);
+  assert.equal(presetRange('today'), null);
+});
+
+test('older than and within the last N days', () => {
+  const now = new Date(2026, 8, 21);
+  assert.equal(render('classic', { dateMode: 'older', days: '30' }, { now }).query, 'received:<=8/21/2026');
+  assert.equal(render('modern', { dateMode: 'older', days: '30' }, { now }).query, 'received:01/01/1990..08/21/2026');
+  assert.equal(render('classic', { dateMode: 'within', days: '7' }, { now }).query, 'received:>=9/14/2026');
+  assert.equal(render('modern', { dateMode: 'within', days: '7', dateField: 'sent' }, { now }).query, 'sent:09/14/2026..12/31/2099');
+  const bad = render('modern', { dateMode: 'older', days: 'x' }, { now });
+  assert.equal(bad.query, '');
+  assert.equal(bad.warnings.length, 1);
 });
 
 test('single date on classic follows the chosen format, modern is always MM/DD/YYYY', () => {
@@ -193,4 +217,21 @@ test('wildcards are stripped from quoted phrases with a warning', () => {
 
 test('mobile fallback has no asterisks', () => {
   assert.equal(render('mobile', { allWords: 'migrat*' }).fallback, 'migrat');
+});
+
+test('word lists keep quoted phrases together', async () => {
+  const { words } = await import('../public/js/query.js');
+  assert.deepEqual(words('unsubscribe "opt out"  "x" a"b'), ['unsubscribe', '"opt out"', 'x', 'ab']);
+  assert.equal(render('modern', { anyWords: 'unsubscribe "opt out"' }).query, '(unsubscribe OR "opt out")');
+  const r = render('modern', { noneWords: '"do not reply*"' });
+  assert.equal(r.query, '-"do not reply"');
+  assert.equal(r.warnings.length, 1);
+});
+
+test('file types become attachment name terms plus hasattachment', () => {
+  assert.equal(render('classic', { fileTypes: 'pdf' }).query, 'attachment:pdf AND hasattachment:yes');
+  assert.equal(render('classic', { fileTypes: 'word,pdf,bogus' }).query, '(attachment:pdf OR attachment:docx OR attachment:doc) AND hasattachment:yes');
+  const m = render('modern', { fileTypes: 'pdf', hasAttachments: 'no' });
+  assert.equal(m.query, 'attachment:pdf AND hasattachment:yes');
+  assert.equal(m.warnings.length, 2);
 });

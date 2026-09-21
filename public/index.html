@@ -34,30 +34,30 @@
         <div id="similar"></div>
 
         <h3>Words</h3>
-        <p class="muted">End a word with * to match its beginning: migrat* finds migrate and migration.</p>
+        <p class="muted">Press Enter after each word or phrase. End a word with * to match its beginning: migrat* finds migrate and migration.</p>
         <div class="grid">
           <label class="field">All of these words
-            <input type="text" name="allWords" placeholder="invoice overdue">
+            <input type="hidden" name="allWords" data-tokens="words" data-placeholder="Type a word, press Enter">
           </label>
           <label class="field">This exact phrase
             <input type="text" name="phrase" placeholder="quarterly report">
           </label>
           <label class="field">Any of these words
-            <input type="text" name="anyWords" placeholder="contract agreement">
+            <input type="hidden" name="anyWords" data-tokens="words" data-placeholder="Type a word, press Enter">
           </label>
           <label class="field">None of these words
-            <input type="text" name="noneWords" placeholder="newsletter unsubscribe">
+            <input type="hidden" name="noneWords" data-tokens="words" data-placeholder="Type a word, press Enter">
           </label>
         </div>
 
         <h3>People</h3>
-        <p class="muted">Names or email addresses. Separate several with commas; any of them will match.</p>
+        <p class="muted">Press Enter after each name or address. Any of them will match.</p>
         <div class="grid">
-          <label class="field">From <input type="text" name="from" placeholder="jane@contoso.com"></label>
-          <label class="field">To <input type="text" name="to"></label>
-          <label class="field">Cc <input type="text" name="cc"></label>
-          <label class="field">Bcc <input type="text" name="bcc"></label>
-          <label class="field">Anywhere in From/To/Cc <input type="text" name="participants"></label>
+          <label class="field">From <input type="hidden" name="from" data-tokens="list" data-placeholder="Name or address, press Enter"></label>
+          <label class="field">To <input type="hidden" name="to" data-tokens="list" data-placeholder="Name or address, press Enter"></label>
+          <label class="field">Cc <input type="hidden" name="cc" data-tokens="list" data-placeholder="Name or address, press Enter"></label>
+          <label class="field">Bcc <input type="hidden" name="bcc" data-tokens="list" data-placeholder="Name or address, press Enter"></label>
+          <label class="field">Anywhere in From/To/Cc <input type="hidden" name="participants" data-tokens="list" data-placeholder="Name or address, press Enter"></label>
         </div>
 
         <h3>Subject, body and attachments</h3>
@@ -65,6 +65,9 @@
           <label class="field">Subject contains <input type="text" name="subject"></label>
           <label class="field">Body contains <input type="text" name="body"></label>
           <label class="field">Attachment name contains <input type="text" name="attachmentName" placeholder="report.pdf"></label>
+          <label class="field wide">File types
+            <input type="hidden" name="fileTypes">
+          </label>
           <label class="field">Attachments
             <select name="hasAttachments">
               <option value="">Doesn't matter</option>
@@ -86,6 +89,8 @@
             <select name="dateMode">
               <option value="">Any time</option>
               <option value="preset">Relative (today, last week…)</option>
+              <option value="within">In the last … days</option>
+              <option value="older">More than … days ago</option>
               <option value="on">On a date</option>
               <option value="after">On or after</option>
               <option value="before">Before</option>
@@ -103,6 +108,9 @@
               <option value="this year">This year</option>
               <option value="last year">Last year</option>
             </select>
+          </label>
+          <label class="field" data-show="within older">Days
+            <input type="number" name="days" min="1" max="3650" step="1" placeholder="30">
           </label>
           <label class="field" data-show="on after before between">Date
             <input type="date" name="date1">

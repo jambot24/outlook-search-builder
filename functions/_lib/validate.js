@@ -4,6 +4,7 @@
 import { sanitizeCriteria } from '../../public/js/storage.js';
 import { renderQueries } from '../../public/js/query.js';
 import { CATEGORY_KEYS } from '../../public/js/library.js';
+import { parseFileTypes } from '../../public/js/filetypes.js';
 
 export const TITLE_MIN = 3;
 export const TITLE_MAX = 80;
@@ -15,7 +16,7 @@ export class ValidationError extends Error {}
 const ENUMS = {
   hasAttachments: ['yes', 'no'],
   dateField: ['received', 'sent'],
-  dateMode: ['preset', 'on', 'after', 'before', 'between'],
+  dateMode: ['preset', 'on', 'after', 'before', 'between', 'older', 'within'],
   datePreset: ['today', 'yesterday', 'this week', 'last week', 'this month', 'last month', 'this year', 'last year'],
   read: ['yes', 'no'],
   flagged: ['yes'],
@@ -53,6 +54,16 @@ export function validateCriteria(input) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(raw[key])) throw new ValidationError(`Invalid ${key}.`);
     out[key] = raw[key];
   }
+  if (raw.days !== undefined && raw.days !== '') {
+    const days = Number(raw.days);
+    if (!Number.isInteger(days) || days < 1 || days > 3650) throw new ValidationError('Invalid number of days.');
+    out.days = String(days);
+  }
+  if (raw.fileTypes) {
+    const types = parseFileTypes(raw.fileTypes);
+    if (types.length !== String(raw.fileTypes).split(',').filter((x) => x.trim()).length) throw new ValidationError('Invalid file type.');
+    out.fileTypes = types.join(',');
+  }
   if (raw.sizeMb !== undefined && raw.sizeMb !== '') {
     const mb = Number(raw.sizeMb);
     if (!Number.isFinite(mb) || mb < 0 || mb > 10000) throw new ValidationError('Invalid size.');
@@ -63,6 +74,7 @@ export function validateCriteria(input) {
   if (out.dateField === 'received') delete out.dateField;
   if (out.dateMode && out.dateMode !== 'preset') delete out.datePreset;
   if (out.dateMode === 'preset') { delete out.date1; delete out.date2; }
+  if (out.dateMode === 'older' || out.dateMode === 'within') { delete out.date1; delete out.date2; } else delete out.days;
   if (out.dateMode && out.dateMode !== 'between') delete out.date2;
   if (!out.sizeOp || out.sizeMb === undefined) { delete out.sizeOp; delete out.sizeMb; }
 

@@ -17,6 +17,18 @@ carries a warning that says so and names the filter to use instead.
 ## Features
 
 - **Queries for all four clients at once**, each with its own Copy button.
+- **Chip inputs.** Press Enter after each name, word or phrase. Each chip is one term, so a phrase
+  needs no quoting.
+- **File-type picker:** PDF, Word, Excel, PowerPoint, CSV, images, archives, calendar files and
+  attached emails.
+- **Dates that stay correct.** Periods a client does not understand are written as a date range, and
+  "in the last N days" and "more than N days ago" are available. Saved searches recalculate them.
+- **Search folder steps** for each version: Classic dialog fields, the closest ready-made folder in
+  new Outlook and on the web, Save Search on Mac.
+- **Library** of built-in searches, including an Inbox zero set that says what to do with the
+  results.
+- **Find similar.** Drop an .eml or .msg to build a query from its sender, subject, attachments
+  and dates. The file is read in the browser and never uploaded or stored.
 - **Saved searches** in the browser's local storage. Nothing is sent to a server.
 - **Export and import.** JSON is the backup format and imports back in. CSV holds one row per
   search with the query for every client, for spreadsheets and documentation.

@@ -9,6 +9,9 @@ import { createSimilar } from './similar.js';
 import { explain } from './explain.js';
 import { CATEGORIES } from './library.js';
 import { DESCRIPTION_MAX_LENGTH, el } from './dom.js';
+import { enhanceTokenField, enhanceToggleGroup } from './tokenfield.js';
+import { FILE_TYPES } from './filetypes.js';
+import { searchFolderSteps } from './searchfolder.js';
 
 const DRAFT_KEY = 'osb.draft.v1';
 const TOAST_MS = 2200;
@@ -36,8 +39,15 @@ function readCriteria() {
   return out;
 }
 
+const enhanced = [
+  ...[...form.querySelectorAll('input[data-tokens]')].map(enhanceTokenField),
+  enhanceToggleGroup(form.elements.namedItem('fileTypes'), FILE_TYPES),
+];
+
 function writeCriteria(criteria) {
   form.reset();
+  // reset() leaves hidden inputs alone, so clear them explicitly.
+  for (const h of form.querySelectorAll('input[type=hidden]')) h.value = '';
   for (const [name, value] of Object.entries(criteria || {})) {
     const el = form.elements.namedItem(name);
     if (el?.type === 'checkbox') el.checked = el.value === value;
@@ -69,13 +79,25 @@ function renderOutputs(criteria) {
       card.append(el('div', { class: 'where' }, 'Plain keywords: '), el('code', {}, r.fallback));
     }
     if (r.scope) card.append(el('div', { class: 'where' }, r.scope));
+    for (const n of r.notes || []) card.append(el('div', { class: 'where' }, n));
+    if (r.query) card.append(searchFolderBlock(key, criteria));
     if (r.warnings.length) card.append(el('ul', { class: 'warn' }, ...r.warnings.map((w) => el('li', {}, w))));
     return card;
   }));
 }
 
+function searchFolderBlock(clientKey, criteria) {
+  const sf = searchFolderSteps(clientKey, criteria);
+  const body = [];
+  if (sf.steps.length) body.push(el('ol', {}, ...sf.steps.map((t) => el('li', {}, t))));
+  if (sf.leftOut.length) body.push(el('p', {}, `Not possible in a search folder, so left out: ${sf.leftOut.join(', ')}.`));
+  for (const n of sf.notes) body.push(el('p', {}, n));
+  return el('details', { class: 'folder-steps' }, el('summary', {}, sf.supported ? 'Save as a search folder' : 'Search folder: not available'), ...body);
+}
+
 function refresh() {
   toggleDateFields();
+  enhanced.forEach((f) => f.sync());
   const criteria = readCriteria();
   renderOutputs(criteria);
   const what = explain(criteria);

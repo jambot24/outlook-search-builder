@@ -7,6 +7,8 @@
 //               so it gets the modern query plus a plain-keyword fallback.
 // Support levels come from Microsoft's support pages; see docs/SYNTAX.md for sources.
 
+import { parseFileTypes, extensionsFor } from './filetypes.js';
+
 export const CLIENTS = [
   { key: 'classic', label: 'Outlook Classic (Windows)', engine: 'classic' },
   { key: 'modern', label: 'New Outlook for Windows / Outlook on the web', engine: 'modern' },
@@ -14,7 +16,12 @@ export const CLIENTS = [
   { key: 'mobile', label: 'Outlook mobile (iOS / Android)', engine: 'modern' },
 ];
 
-const PRESETS_DOCUMENTED_MODERN = new Set(['today', 'yesterday', 'this week', 'last week']);
+// Date words each engine documents. Other periods are written out as a date range.
+const PRESETS_DOCUMENTED = {
+  classic: new Set(['today', 'yesterday', 'this week', 'last week', 'last month', 'last year']),
+  modern: new Set(['today', 'yesterday', 'this week', 'last week']),
+};
+const MAX_DAYS = 3650;
 const RANGE_FLOOR = '1990-01-01';
 const RANGE_CEILING = '2099-12-31';
 const KB_PER_MB = 1024;
@@ -29,8 +36,21 @@ export function splitList(value) {
   return String(value ?? '').split(/[,;]/).map((s) => s.trim()).filter(Boolean);
 }
 
-function words(value) {
-  return String(value ?? '').replace(/"/g, '').split(/\s+/).filter(Boolean);
+// Splits on spaces but keeps "quoted phrases" together: 'unsubscribe "opt out"' -> ['unsubscribe', '"opt out"'].
+export function words(value) {
+  const out = [];
+  const re = /"([^"]*)"|(\S+)/g;
+  let m;
+  while ((m = re.exec(String(value ?? '')))) {
+    if (m[1] !== undefined) {
+      const phrase = m[1].trim().replace(/\s+/g, ' ');
+      if (phrase) out.push(/\s/.test(phrase) ? `"${phrase}"` : phrase);
+    } else {
+      const w = m[2].replace(/"/g, '');
+      if (w) out.push(w);
+    }
+  }
+  return out;
 }
 
 const WILDCARD_WHERE = 'Outlook only supports * at the end of a single word, like migrat*. Other asterisks were removed.';
@@ -88,7 +108,11 @@ function keywordTerms(keyword, value, engine, warn) {
 }
 
 function wordParts(c, engine, warn = () => {}) {
-  const w = (value) => words(value).map((x) => wildcard(x, engine, warn)).filter(Boolean);
+  const w = (value) => words(value).map((x) => {
+    if (!x.startsWith('"')) return wildcard(x, engine, warn);
+    if (x.includes('*')) warn(WILDCARD_WHERE);
+    return x.replace(/\*/g, '');
+  }).filter(Boolean);
   const parts = [];
   parts.push(...w(c.allWords));
   const phrase = String(c.phrase ?? '').replace(/"/g, '').trim();
@@ -129,25 +153,80 @@ function contentParts(c, engine, warn) {
     parts.push(`attachment:${term(c.attachmentName, engine, warn)}`);
     if (engine !== 'classic') warn('Searching by attachment name is not documented here. If it returns nothing, use the Attachments filter instead.');
   }
-  if (c.hasAttachments === 'yes' || c.hasAttachments === 'no') parts.push(`hasattachment:${c.hasAttachments}`);
+  const types = parseFileTypes(c.fileTypes);
+  if (types.length) {
+    parts.push(orGroup(extensionsFor(types).map((e) => `attachment:${e}`)));
+    if (engine !== 'classic') warn('Searching by attachment name is not documented here. If it returns nothing, use the Attachments filter instead.');
+    if (c.hasAttachments === 'no') warn('"No attachments" was ignored because file types are selected.');
+    parts.push('hasattachment:yes');
+  } else if (c.hasAttachments === 'yes' || c.hasAttachments === 'no') {
+    parts.push(`hasattachment:${c.hasAttachments}`);
+  }
   return parts;
 }
 
-function dateParts(c, engine, warn) {
+function isoLocal(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// First and last day of a named period, in the user's local calendar.
+export function presetRange(preset, now = new Date()) {
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  switch (preset) {
+    case 'this month': return [isoLocal(new Date(y, m, 1)), isoLocal(new Date(y, m + 1, 0))];
+    case 'last month': return [isoLocal(new Date(y, m - 1, 1)), isoLocal(new Date(y, m, 0))];
+    case 'this year': return [`${y}-01-01`, `${y}-12-31`];
+    case 'last year': return [`${y - 1}-01-01`, `${y - 1}-12-31`];
+    default: return null;
+  }
+}
+
+function daysAgo(days, now) {
+  return isoLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate() - days));
+}
+
+function rangeTerms(field, engine, fmt, from, to) {
+  if (engine === 'classic') {
+    const parts = [];
+    if (from) parts.push(`${field}:>=${formatDate(from, fmt)}`);
+    if (to) parts.push(`${field}:<=${formatDate(to, fmt)}`);
+    return parts.join(' AND ');
+  }
+  return `${field}:${formatDate(from || RANGE_FLOOR, fmt)}..${formatDate(to || RANGE_CEILING, fmt)}`;
+}
+
+function dateParts(c, engine, warn, note, now) {
   const field = c.dateField === 'sent' ? 'sent' : 'received';
   const mode = c.dateMode || '';
   if (!mode) return [];
+  // Classic reads dates in the Windows regional format; the new engine documents MM/DD/YYYY only.
+  const fmt = engine === 'classic' ? (c.dateFormat || 'mdy') : 'mm/dd';
 
   if (mode === 'preset') {
     const preset = String(c.datePreset || 'today');
-    if (engine === 'modern' && !PRESETS_DOCUMENTED_MODERN.has(preset)) {
-      warn(`"${preset}" is not on Microsoft's list of date words for this Outlook. Use a date range if it returns nothing.`);
-    }
-    return [`${field}:${quote(preset)}`];
+    if (PRESETS_DOCUMENTED[engine].has(preset)) return [`${field}:${quote(preset)}`];
+    const range = presetRange(preset, now);
+    if (!range) return [`${field}:${quote(preset)}`];
+    note(`"${preset}" is written as dates (${formatDate(range[0], fmt)} to ${formatDate(range[1], fmt)}) because this Outlook does not understand the phrase. Saved searches recalculate it.`);
+    return [rangeTerms(field, engine, fmt, range[0], range[1])];
   }
 
-  // Classic reads dates in the Windows regional format; the new engine documents MM/DD/YYYY only.
-  const fmt = engine === 'classic' ? (c.dateFormat || 'mdy') : 'mm/dd';
+  if (mode === 'older' || mode === 'within') {
+    const days = Number(c.days);
+    if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) {
+      warn('Enter a number of days to include the date filter.');
+      return [];
+    }
+    if (mode === 'older') {
+      // "More than 30 days ago" = received on or before the day 31 days back.
+      note(`"More than ${days} days ago" is written as a date, so a saved search recalculates it.`);
+      return [rangeTerms(field, engine, fmt, '', daysAgo(days + 1, now))];
+    }
+    note(`"In the last ${days} days" is written as a date, so a saved search recalculates it.`);
+    return [rangeTerms(field, engine, fmt, daysAgo(days, now), '')];
+  }
+
   let d1 = c.date1;
   let d2 = c.date2;
   if (!formatDate(d1, fmt)) {
@@ -161,8 +240,8 @@ function dateParts(c, engine, warn) {
     if (mode === 'after') return [`${field}:>=${formatDate(d1, fmt)}`];
     if (mode === 'before') return [`${field}:<${formatDate(d1, fmt)}`];
   } else {
-    if (mode === 'after') return [`${field}:${formatDate(d1, fmt)}..${formatDate(RANGE_CEILING, fmt)}`];
-    if (mode === 'before') return [`${field}:${formatDate(RANGE_FLOOR, fmt)}..${formatDate(previousDay(d1), fmt)}`];
+    if (mode === 'after') return [rangeTerms(field, engine, fmt, d1, '')];
+    if (mode === 'before') return [rangeTerms(field, engine, fmt, '', previousDay(d1))];
   }
 
   if (mode === 'between') {
@@ -171,9 +250,7 @@ function dateParts(c, engine, warn) {
       return [];
     }
     if (d2 < d1) [d1, d2] = [d2, d1];
-    return engine === 'classic'
-      ? [`${field}:>=${formatDate(d1, fmt)} AND ${field}:<=${formatDate(d2, fmt)}`]
-      : [`${field}:${formatDate(d1, fmt)}..${formatDate(d2, fmt)}`];
+    return [rangeTerms(field, engine, fmt, d1, d2)];
   }
   return [];
 }
@@ -233,24 +310,26 @@ function scopeText(c, clientKey) {
   return lines.join(' ');
 }
 
-export function render(clientKey, criteria) {
+export function render(clientKey, criteria, { now = new Date() } = {}) {
   const client = CLIENTS.find((x) => x.key === clientKey);
   if (!client) throw new Error(`Unknown client: ${clientKey}`);
   const c = criteria || {};
   const engine = client.engine;
   const warnings = [];
   const warn = (msg) => { if (!warnings.includes(msg)) warnings.push(msg); };
+  const notes = [];
+  const note = (msg) => { if (!notes.includes(msg)) notes.push(msg); };
 
   const parts = [
     ...wordParts(c, engine, warn),
     ...peopleParts(c, engine, warn),
     ...contentParts(c, engine, warn),
-    ...dateParts(c, engine, warn),
+    ...dateParts(c, engine, warn, note, now),
     ...statusParts(c, engine, warn),
   ].filter(Boolean);
 
   // Explicit AND: Microsoft's Windows and web/Mac references treat bare spaces differently.
-  const result = { query: parts.join(' AND '), warnings, scope: parts.length ? scopeText(c, clientKey) : '' };
+  const result = { query: parts.join(' AND '), warnings, notes, scope: parts.length ? scopeText(c, clientKey) : '' };
 
   if (clientKey === 'mobile' && result.query) {
     result.fallback = [
@@ -263,8 +342,8 @@ export function render(clientKey, criteria) {
   return result;
 }
 
-export function renderAll(criteria) {
-  return Object.fromEntries(CLIENTS.map((c) => [c.key, render(c.key, criteria)]));
+export function renderAll(criteria, opts) {
+  return Object.fromEntries(CLIENTS.map((c) => [c.key, render(c.key, criteria, opts)]));
 }
 
 // Flat query strings per client, used by CSV export.

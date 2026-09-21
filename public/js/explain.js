@@ -1,7 +1,8 @@
 // Plain-English description of what a set of criteria finds.
 // Shown under the generated queries and under every library search.
 
-import { splitList } from './query.js';
+import { splitList, words } from './query.js';
+import { parseFileTypes, labelFor } from './filetypes.js';
 
 function list(items, joiner = 'or') {
   if (items.length <= 1) return items.join('');
@@ -13,7 +14,7 @@ function people(value) {
 }
 
 function wordsOf(value) {
-  return String(value ?? '').replace(/"/g, '').split(/\s+/).filter(Boolean);
+  return words(value).map((w) => w.replace(/"/g, ''));
 }
 
 function niceDate(iso) {
@@ -32,6 +33,8 @@ function datePhrase(c) {
     case 'on': return d1 ? `${verb} on ${d1}` : '';
     case 'after': return d1 ? `${verb} on or after ${d1}` : '';
     case 'before': return d1 ? `${verb} before ${d1}` : '';
+    case 'older': return Number(c.days) > 0 ? `${verb} more than ${Number(c.days)} days ago` : '';
+    case 'within': return Number(c.days) > 0 ? `${verb} in the last ${Number(c.days)} days` : '';
     case 'between': {
       if (!d1 || !d2) return '';
       const [a, b] = c.date1 <= c.date2 ? [d1, d2] : [d2, d1];
@@ -67,8 +70,10 @@ export function explain(criteria) {
 
   if (String(c.subject ?? '').trim()) clauses.push(`with "${c.subject.trim()}" in the subject`);
   if (String(c.body ?? '').trim()) clauses.push(`with "${c.body.trim()}" in the body`);
-  if (c.hasAttachments === 'yes') clauses.push('with attachments');
-  if (c.hasAttachments === 'no') clauses.push('without attachments');
+  const types = parseFileTypes(c.fileTypes);
+  if (types.length) clauses.push(`with ${list(types.map(labelFor))} attachments`);
+  else if (c.hasAttachments === 'yes') clauses.push('with attachments');
+  else if (c.hasAttachments === 'no') clauses.push('without attachments');
   if (String(c.attachmentName ?? '').trim()) clauses.push(`with an attachment named like "${c.attachmentName.trim()}"`);
   if (String(c.category ?? '').trim()) clauses.push(`in the "${c.category.trim()}" category`);
 

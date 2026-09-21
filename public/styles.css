@@ -280,3 +280,30 @@ footer a { color: var(--accent); }
 .suggestions label { overflow-wrap: anywhere; }
 .facts ul { margin: 4px 0 0; padding-left: 20px; font-size: 13px; }
 .facts p { margin: 12px 0 0; }
+
+/* ---------- chips, toggles, search folders ---------- */
+.token-field {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 6px; background: var(--surface); cursor: text; min-height: 38px;
+}
+.token-field:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tokens { display: contents; }
+.token {
+  display: inline-flex; align-items: center; gap: 2px; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 1px 4px 1px 10px; font-size: 14px; color: var(--text); max-width: 100%;
+}
+.token > span { overflow-wrap: anywhere; }
+.token-x { border: none; background: none; padding: 0 5px; font-size: 16px; line-height: 1; color: var(--muted); }
+.token-x:hover { color: var(--danger); }
+.token-input { border: none !important; outline: none !important; padding: 3px !important; flex: 1 1 120px; min-width: 100px; }
+.toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+.toggle { border-radius: 999px; padding: 4px 12px; font-size: 13.5px; }
+.toggle.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+label.field.wide { grid-column: 1 / -1; }
+.folder-steps { margin-top: 8px; font-size: 13px; }
+.folder-steps summary { cursor: pointer; color: var(--accent); }
+.folder-steps ol { margin: 6px 0; padding-left: 20px; }
+.folder-steps li { margin: 3px 0; }
+.folder-steps p { margin: 6px 0; color: var(--muted); }
+.lib-card .note { margin: 0; font-size: 12.5px; color: var(--muted); font-style: italic; }
+.lib-card .action { margin: 0; font-size: 13px; }

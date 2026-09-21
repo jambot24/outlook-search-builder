@@ -43,3 +43,8 @@ test('size, subject, category and other fields are described', () => {
   );
   assert.equal(explain({ dateMode: 'before', date1: '2026-02-01', sizeOp: '<', sizeMb: '1' }), 'Finds messages received before Feb 1, 2026 smaller than 1 MB.');
 });
+
+test('file types and phrases are described', () => {
+  assert.equal(explain({ fileTypes: 'pdf,word' }), 'Finds messages with PDF or Word attachments.');
+  assert.equal(explain({ anyWords: 'unsubscribe "opt out"' }), 'Finds messages mentioning "unsubscribe" or "opt out".');
+});

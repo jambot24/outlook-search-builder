@@ -93,7 +93,8 @@ test('suggestions cover sender, domain, subject pattern, attachments, list and d
   assert.deepEqual(byId['from-domain'].criteria, { from: 'contoso.com' });
   assert.equal(byId.subject.checked, false);
   assert.equal(byId['subject-pattern'].checked, true);
-  assert.deepEqual(byId['attachment-type'].criteria, { hasAttachments: 'yes', attachmentName: 'pdf' });
+  assert.deepEqual(byId['attachment-type'].criteria, { fileTypes: 'pdf,word' });
+  assert.equal(byId['attachment-type'].label, 'Has PDF or Word attachments');
   assert.ok(byId.newsletter);
   assert.deepEqual(byId['date-window'].criteria, { dateMode: 'between', date1: '2026-09-14', date2: '2026-09-28' });
   assert.equal(byId.to.criteria.to, 'jane@fabrikam.com');

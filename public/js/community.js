@@ -118,6 +118,8 @@ export function createLibrary({ config, root, onUse, toast, getCriteria, isSigne
         el('strong', {}, item.title),
         el('span', { class: 'chip static' }, categoryLabel(item.category))),
       el('p', { class: 'explain' }, ours),
+      item.note ? el('p', { class: 'note' }, item.note) : null,
+      item.action ? el('p', { class: 'action' }, el('strong', {}, 'Then: '), item.action) : null,
       el('code', { class: 'preview' }, preview));
 
     if (community) {

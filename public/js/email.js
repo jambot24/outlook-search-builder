@@ -1,3 +1,5 @@
+import { typeForExtension, labelFor } from './filetypes.js';
+
 // Reads a dropped .eml or .msg file in the browser and suggests "find similar" criteria.
 // Nothing is uploaded or stored: the file is read into memory, parsed, and discarded.
 
@@ -299,8 +301,10 @@ export function suggestionsFor(email) {
 
   if (email.attachments?.length) {
     add({ id: 'attachments', label: `Has attachments (${email.attachments.length} in this email)`, criteria: { hasAttachments: 'yes' }, checked: true });
-    const ext = extension(email.attachments[0]);
-    if (ext) add({ id: 'attachment-type', label: `Has a .${ext} attachment`, criteria: { hasAttachments: 'yes', attachmentName: ext } });
+    const types = [...new Set(email.attachments.map((a) => typeForExtension(extension(a))).filter(Boolean))];
+    if (types.length) {
+      add({ id: 'attachment-type', label: `Has ${types.map(labelFor).join(' or ')} attachments`, criteria: { fileTypes: types.join(',') } });
+    }
   }
 
   if (listMail) {
