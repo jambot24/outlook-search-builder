@@ -114,8 +114,8 @@ The community API is deployed but answers `503` until four things exist.
    - Put its client ID in `public/js/config.js` and in `MSAL_CLIENT_ID` in `wrangler.toml`.
 2. **A Cloudflare Turnstile widget.** The site key goes in `public/js/config.js`. The secret goes
    into the Pages secret `TURNSTILE_SECRET_KEY`.
-3. **A D1 database.** Create it, add its binding to `wrangler.toml`, and apply
-   `migrations/0001_init.sql`.
+3. **A D1 database.** Create it, add its binding to `wrangler.toml`, and apply every file in
+   `migrations/` in order (`wrangler d1 migrations apply`).
 4. **A redeploy.**
 
 Moderation is automatic:
