@@ -318,3 +318,9 @@ test('attachment name and file types share one warning and still set hasattachme
   assert.equal(r.query, 'attachment:report AND attachment:pdf AND hasattachment:yes');
   assert.equal(r.warnings.length, 1);
 });
+
+test('a term containing a colon is quoted so it is not read as a keyword', () => {
+  assert.equal(render('modern', { anyWords: '"Read:" "Automatic reply"' }).query, '("Read:" OR "Automatic reply")');
+  assert.equal(render('modern', { subject: 'Re: hello' }).query, 'subject:"Re: hello"');
+  assert.equal(render('modern', { from: 'x:y' }).query, 'from:"x:y"');
+});

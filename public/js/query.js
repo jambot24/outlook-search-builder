@@ -29,7 +29,8 @@ const KB_PER_MB = 1024;
 export function quote(value) {
   const v = String(value ?? '').replace(/"/g, '').trim().replace(/\s+/g, ' ');
   if (!v) return '';
-  return /\s/.test(v) ? `"${v}"` : v;
+  // A colon inside a bare term would be read as a property name ("Read:" as a keyword).
+  return /[\s:]/.test(v) ? `"${v}"` : v;
 }
 
 export function splitList(value) {
@@ -74,11 +75,11 @@ export function words(value) {
   while ((m = re.exec(String(value ?? '')))) {
     if (m[1] !== undefined) {
       const phrase = m[1].trim().replace(/\s+/g, ' ');
-      if (phrase) out.push(/\s/.test(phrase) ? `"${phrase}"` : phrase);
+      if (phrase) out.push(quote(phrase));
     } else {
       // A leading - or + and the bare words AND/OR/NOT would be read as search operators.
       const w = m[2].replace(/"/g, '').replace(/^[-+]+/, '');
-      if (/^(and|or|not)$/i.test(w)) out.push(`"${w}"`);
+      if (/^(and|or|not)$/i.test(w) || w.includes(':')) out.push(`"${w}"`);
       else if (w) out.push(w);
     }
   }
@@ -110,7 +111,9 @@ function term(value, engine, warn) {
     if (v.includes('*')) warn(WILDCARD_WHERE);
     return quote(v.replace(/\*/g, ''));
   }
-  return wildcard(v, engine, warn);
+  const w = wildcard(v, engine, warn);
+  // Quote a colon so it is not read as a property name; a trailing wildcard cannot be quoted.
+  return w.includes(':') && !w.endsWith('*') ? `"${w}"` : w;
 }
 
 // iso is "YYYY-MM-DD" from <input type=date>.
