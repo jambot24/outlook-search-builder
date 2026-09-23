@@ -318,3 +318,4 @@ label.field.wide { grid-column: 1 / -1; }
 .coffee-button:hover { background: #ffe433; border-color: #d4b800; }
 .coffee-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 480px) { .account { flex-wrap: wrap; } }
+select.match-mode { font-size: 13px; padding: 4px 6px; color: var(--muted); }

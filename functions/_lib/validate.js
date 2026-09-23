@@ -22,6 +22,9 @@ const ENUMS = {
   flagged: ['yes'],
   importance: ['high', 'normal', 'low'],
   sizeOp: ['>', '<'],
+  subjectMode: ['phrase', 'all', 'starts'],
+  bodyMode: ['phrase', 'all', 'starts'],
+  attachmentMode: ['phrase', 'all', 'starts'],
 };
 const TEXT_FIELDS = ['allWords', 'phrase', 'anyWords', 'noneWords', 'from', 'to', 'cc', 'bcc', 'participants', 'subject', 'body', 'attachmentName', 'category'];
 const DATE_FIELDS = ['date1', 'date2'];
@@ -79,6 +82,10 @@ export function validateCriteria(input) {
   if (out.dateMode !== 'ago') delete out.days2;
   if (out.dateMode && out.dateMode !== 'between') delete out.date2;
   if (!out.sizeOp || out.sizeMb === undefined) { delete out.sizeOp; delete out.sizeMb; }
+  // A match mode means nothing without its field.
+  if (!out.subject) delete out.subjectMode;
+  if (!out.body) delete out.bodyMode;
+  if (!out.attachmentName) delete out.attachmentMode;
   // A date mode missing its values adds nothing to the query, so drop it (keeps duplicates detectable).
   const complete = {
     preset: () => true,

@@ -39,7 +39,7 @@ test('dates are described per mode and between is ordered', () => {
 test('size, subject, category and other fields are described', () => {
   assert.equal(
     explain({ subject: 'status', category: 'Red', sizeOp: '>', sizeMb: '5', to: 'a', cc: 'b', bcc: 'c', participants: 'd', phrase: 'p q', body: 'z', attachmentName: 'x.pdf', read: 'yes', importance: 'normal', hasAttachments: 'no', dateMode: 'after', date1: '2026-02-01' }),
-    'Finds read and normal-importance messages sent to a with b on Cc with c on Bcc involving d containing the phrase "p q" with "status" in the subject with "z" in the body without attachments with an attachment named like "x.pdf" in the "Red" category received on or after Feb 1, 2026 larger than 5 MB.',
+    'Finds read and normal-importance messages sent to a with b on Cc with c on Bcc involving d containing the phrase "p q" with "status" in the subject with "z" in the body without attachments with "x.pdf" in the attachment name in the "Red" category received on or after Feb 1, 2026 larger than 5 MB.',
   );
   assert.equal(explain({ dateMode: 'before', date1: '2026-02-01', sizeOp: '<', sizeMb: '1' }), 'Finds messages received before Feb 1, 2026 smaller than 1 MB.');
 });
@@ -63,4 +63,11 @@ test('explanation stays in step with what the query actually does', () => {
   assert.equal(explain({ sizeOp: '>', sizeMb: '-1' }), '');
   assert.equal(explain({ phrase: '"' }), '');
   assert.equal(explain({ phrase: 'a*b' }), 'Finds messages containing the phrase "ab".');
+});
+
+test('match modes are described', () => {
+  assert.equal(explain({ subject: 'weekly status', subjectMode: 'all' }), 'Finds messages with the words "weekly" and "status" in the subject.');
+  assert.equal(explain({ subject: 'weekl', subjectMode: 'starts' }), 'Finds messages with the subject starting with "weekl".');
+  assert.equal(explain({ attachmentName: 'report', attachmentMode: 'starts' }), 'Finds messages with the attachment name starting with "report".');
+  assert.equal(explain({ body: 'change window' }), 'Finds messages with "change window" in the body.');
 });

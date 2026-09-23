@@ -296,3 +296,25 @@ test('empty or out-of-range days and sizes are ignored consistently', async () =
   assert.equal(render('modern', { dateMode: 'ago', days: '', days2: '' }).query, '');
   assert.equal(render('modern', { sizeOp: '<', sizeMb: '0' }).query, '');
 });
+
+test('match modes: exact phrase, all words, starts with', () => {
+  const c = { subject: 'weekly status' };
+  assert.equal(render('modern', { ...c, subjectMode: 'phrase' }).query, 'subject:"weekly status"');
+  assert.equal(render('modern', { ...c, subjectMode: 'all' }).query, 'subject:(weekly status)');
+  const classicAll = render('classic', { ...c, subjectMode: 'all' });
+  assert.equal(classicAll.query, '(subject:weekly AND subject:status)');
+  assert.equal(classicAll.warnings.length, 1);
+  assert.equal(render('modern', { subject: 'weekl', subjectMode: 'starts' }).query, 'subject:weekl*');
+  assert.equal(render('classic', { subject: 'weekl', subjectMode: 'starts' }).query, 'subject:weekl');
+  const multi = render('modern', { ...c, subjectMode: 'starts' });
+  assert.equal(multi.query, 'subject:"weekly status"');
+  assert.match(multi.warnings[0], /single word/);
+  assert.equal(render('modern', { body: 'change window', bodyMode: 'all' }).query, 'body:(change window)');
+  assert.equal(render('modern', { attachmentName: 'report', attachmentMode: 'starts' }).query, 'attachment:report* AND hasattachment:yes'.replace(' AND hasattachment:yes', ''));
+});
+
+test('attachment name and file types share one warning and still set hasattachment', () => {
+  const r = render('modern', { attachmentName: 'report', fileTypes: 'pdf' });
+  assert.equal(r.query, 'attachment:report AND attachment:pdf AND hasattachment:yes');
+  assert.equal(r.warnings.length, 1);
+});

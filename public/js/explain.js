@@ -75,13 +75,23 @@ export function explain(criteria) {
   const none = wordsOf(c.noneWords);
   if (none.length) clauses.push(`not mentioning ${list(none.map((w) => `"${w}"`))}`);
 
-  if (String(c.subject ?? '').trim()) clauses.push(`with "${c.subject.trim()}" in the subject`);
-  if (String(c.body ?? '').trim()) clauses.push(`with "${c.body.trim()}" in the body`);
+  const field = (value, mode, where) => {
+    const v = String(value ?? '').replace(/"/g, '').trim().replace(/\s+/g, ' ');
+    if (!v) return '';
+    if (mode === 'starts' && !/\s/.test(v)) return `with ${where} starting with "${v}"`;
+    if (mode === 'all' && /\s/.test(v)) return `with the words ${list(v.split(' ').map((w) => `"${w}"`), 'and')} in ${where}`;
+    return `with "${v}" in ${where}`;
+  };
+  for (const clause of [
+    field(c.subject, c.subjectMode, 'the subject'),
+    field(c.body, c.bodyMode, 'the body'),
+  ]) if (clause) clauses.push(clause);
   const types = parseFileTypes(c.fileTypes);
   if (types.length) clauses.push(`with ${list(types.map(labelFor))} attachments`);
   else if (c.hasAttachments === 'yes') clauses.push('with attachments');
   else if (c.hasAttachments === 'no') clauses.push('without attachments');
-  if (String(c.attachmentName ?? '').trim()) clauses.push(`with an attachment named like "${c.attachmentName.trim()}"`);
+  const attachmentClause = field(c.attachmentName, c.attachmentMode, 'the attachment name');
+  if (attachmentClause) clauses.push(attachmentClause);
   if (String(c.category ?? '').trim()) clauses.push(`in the "${c.category.trim()}" category`);
 
   const date = datePhrase(c);

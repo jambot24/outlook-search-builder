@@ -64,10 +64,20 @@
         </div>
 
         <h3>Subject, body and attachments</h3>
+        <p class="muted">Outlook always matches whole words and word beginnings, so "invoice" also finds "Invoice #4471". There is no exact-equals search.</p>
         <div class="grid">
-          <label class="field">Subject contains <input type="text" name="subject"></label>
-          <label class="field">Body contains <input type="text" name="body"></label>
-          <label class="field">Attachment name contains <input type="text" name="attachmentName" placeholder="report.pdf"></label>
+          <label class="field">Subject
+            <input type="text" name="subject">
+            <select name="subjectMode" aria-label="How to match subject" class="match-mode"></select>
+          </label>
+          <label class="field">Body
+            <input type="text" name="body">
+            <select name="bodyMode" aria-label="How to match body" class="match-mode"></select>
+          </label>
+          <label class="field">Attachment name
+            <input type="text" name="attachmentName" placeholder="report.pdf">
+            <select name="attachmentMode" aria-label="How to match the attachment name" class="match-mode"></select>
+          </label>
           <label class="field wide">File types
             <input type="hidden" name="fileTypes">
           </label>

@@ -174,21 +174,56 @@ function peopleParts(c, engine, warn) {
   return parts;
 }
 
+// How a text field is matched. Outlook has no exact-equals search: it always matches whole
+// words and word beginnings, so these are the three shapes it really supports.
+export const MATCH_MODES = [
+  { key: 'phrase', label: 'this exact phrase' },
+  { key: 'all', label: 'all of these words' },
+  { key: 'starts', label: 'starts with' },
+];
+
+function fieldTerm(keyword, value, mode, engine, warn) {
+  const tokens = words(value).map((w) => w.replace(/"/g, '')).filter(Boolean);
+  if (!tokens.length) return '';
+
+  if (mode === 'all' && tokens.length > 1) {
+    if (engine === 'classic') {
+      warn(`Matching several words in one field is not documented for Outlook Classic. If ${keyword}: returns nothing, use "this exact phrase".`);
+      return `(${tokens.map((t) => `${keyword}:${wildcard(t, engine, warn)}`).join(' AND ')})`;
+    }
+    return `${keyword}:(${tokens.map((t) => wildcard(t, engine, warn)).join(' ')})`;
+  }
+
+  if (mode === 'starts') {
+    if (tokens.length > 1) {
+      warn('"Starts with" works on a single word, so the words were matched as a phrase instead.');
+    } else {
+      return `${keyword}:${wildcard(`${tokens[0]}*`, engine, warn)}`;
+    }
+  }
+
+  return `${keyword}:${term(tokens.join(' '), engine, warn)}`;
+}
+
 function contentParts(c, engine, warn) {
   const parts = [];
-  if (term(c.subject, engine, warn)) parts.push(`subject:${term(c.subject, engine, warn)}`);
-  if (term(c.body, engine, warn)) {
-    parts.push(`body:${term(c.body, engine, warn)}`);
+  const subject = fieldTerm('subject', c.subject, c.subjectMode, engine, warn);
+  if (subject) parts.push(subject);
+
+  const body = fieldTerm('body', c.body, c.bodyMode, engine, warn);
+  if (body) {
+    parts.push(body);
     if (engine === 'classic') warn('body: is not on Microsoft\'s list for classic Outlook. If it returns nothing, put the words in "All of these words".');
   }
-  if (term(c.attachmentName, engine, warn)) {
-    parts.push(`attachment:${term(c.attachmentName, engine, warn)}`);
-    if (engine !== 'classic') warn('Searching by attachment name is not documented here. If it returns nothing, use the Attachments filter instead.');
-  }
+
+  const attachment = fieldTerm('attachment', c.attachmentName, c.attachmentMode, engine, warn);
   const types = parseFileTypes(c.fileTypes);
+  if (attachment) parts.push(attachment);
+  if (types.length) parts.push(orGroup(extensionsFor(types).map((e) => `attachment:${e}`)));
+  if ((attachment || types.length) && engine !== 'classic') {
+    warn('Searching by attachment name is not documented here. If it returns nothing, use the Attachments filter instead.');
+  }
   if (types.length) {
-    parts.push(orGroup(extensionsFor(types).map((e) => `attachment:${e}`)));
-    if (engine !== 'classic') warn('Searching by attachment name is not documented here. If it returns nothing, use the Attachments filter instead.');
     if (c.hasAttachments === 'no') warn('"No attachments" was ignored because file types are selected.');
     parts.push('hasattachment:yes');
   } else if (c.hasAttachments === 'yes' || c.hasAttachments === 'no') {

@@ -1,4 +1,4 @@
-import { CLIENTS, COMMON_FOLDERS, renderAll, renderQueries, dateHint } from './query.js';
+import { CLIENTS, COMMON_FOLDERS, MATCH_MODES, renderAll, renderQueries, dateHint } from './query.js';
 import {
   loadSaved, persistSaved, createEntry, upsertEntry, removeEntry,
   toExportJson, toExportCsv, mergeImport, sanitizeCriteria,
@@ -40,6 +40,10 @@ function readCriteria() {
     out[el.name] = el.value;
   }
   return out;
+}
+
+for (const select of form.querySelectorAll('select.match-mode')) {
+  select.replaceChildren(...MATCH_MODES.map((m) => el('option', { value: m.key }, m.label)));
 }
 
 const enhanced = [
