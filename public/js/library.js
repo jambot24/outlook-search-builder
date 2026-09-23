@@ -44,6 +44,14 @@ export const BUILT_INS = [
     action: 'Archive them all, then make a rule for the senders that keep coming back so they skip the inbox.',
   },
   {
+    id: 'iz-receipts',
+    title: 'Read receipts and auto-replies',
+    category: 'inbox-zero',
+    criteria: { anyWords: '"Read:" "Not Read:" "Automatic reply" "Out of Office" "Delivery Receipt"' },
+    note: 'These words are matched anywhere in a message, so glance down the list before deleting.',
+    action: 'Delete them in bulk. If read receipts arrive often, turn them off in Outlook settings so they stop reaching the inbox.',
+  },
+  {
     id: 'iz-meeting-responses',
     title: 'Meeting accepts and declines',
     category: 'inbox-zero',
@@ -77,6 +85,13 @@ export const BUILT_INS = [
     title: 'Large attachments from last year',
     category: 'cleanup',
     criteria: { hasAttachments: 'yes', sizeOp: '>', sizeMb: '5', dateMode: 'preset', datePreset: 'last year' },
+  },
+  {
+    id: 'large-old',
+    title: 'Large mail older than a year',
+    category: 'cleanup',
+    criteria: { sizeOp: '>', sizeMb: '5', dateMode: 'older', days: '365' },
+    action: 'Sort by size, largest first, then delete or save the attachments elsewhere. The date recalculates every time you load this search.',
   },
   {
     id: 'unread',
@@ -113,6 +128,27 @@ export const BUILT_INS = [
     title: 'Payment reminders',
     category: 'finance',
     criteria: { subject: 'payment', anyWords: 'overdue due reminder' },
+  },
+  {
+    id: 'renewals',
+    title: 'Subscription renewals and auto-charges',
+    category: 'finance',
+    criteria: { anyWords: 'auto-renew "renew automatically" "renews on" "renewal notice" "subscription renewal" "will be charged" "next billing date" "upcoming charge"' },
+    action: 'Sort by date to see what renews soonest, then cancel anything you no longer use before it charges.',
+  },
+  {
+    id: 'trials-ending',
+    title: 'Free trials about to end',
+    category: 'finance',
+    criteria: { anyWords: '"free trial" "trial ends" "trial expires" "trial period" "trial will end"', dateMode: 'within', days: '30' },
+    action: 'Decide now: keep it and note the first charge date, or cancel while the trial still runs.',
+  },
+  {
+    id: 'price-changes',
+    title: 'Price and plan changes',
+    category: 'finance',
+    criteria: { anyWords: '"price increase" "price change" "new pricing" "rate change" "updating our prices" "changes to your plan"' },
+    action: 'Check what the new price is and when it starts, then decide before it takes effect.',
   },
   {
     id: 'security-codes',
@@ -177,6 +213,20 @@ export const BUILT_INS = [
     criteria: { hasAttachments: 'yes', dateMode: 'preset', datePreset: 'this week' },
   },
   {
+    id: 'meeting-recordings',
+    title: 'Meeting recordings',
+    category: 'meetings',
+    criteria: { anyWords: '"recording is available" "meeting recording" "view recording" "cloud recording" "shared a recording"' },
+    note: 'Matches the wording Teams, Zoom and Webex use when a recording is ready. The recording itself lives in the linked service, not in the message.',
+  },
+  {
+    id: 'meeting-recaps',
+    title: 'Meeting notes and recaps',
+    category: 'meetings',
+    criteria: { anyWords: 'transcript "meeting notes" "meeting recap" "AI summary" "action items" "follow-up notes"' },
+    note: 'Covers the notes that meeting assistants send after a call, whichever tool produced them.',
+  },
+  {
     id: 'meeting-links',
     title: 'Meeting links (Teams, Zoom, Google Meet, Webex)',
     category: 'meetings',
@@ -188,5 +238,19 @@ export const BUILT_INS = [
     title: 'Out-of-office auto-replies',
     category: 'meetings',
     criteria: { subject: 'Automatic reply' },
+  },
+  {
+    id: 'awaiting-signature',
+    title: 'Documents waiting for your signature',
+    category: 'other',
+    criteria: { anyWords: 'docusign "adobe sign" "please sign" "signature requested" "awaiting your signature" "sign the attached" e-sign' },
+    action: 'Sign what is still open, and archive the rest. Signature reminders repeat, so keep only the newest for each document.',
+  },
+  {
+    id: 'travel',
+    title: 'Travel bookings and itineraries',
+    category: 'other',
+    criteria: { anyWords: 'itinerary "boarding pass" "booking reference" "flight confirmation" "hotel confirmation" "reservation confirmed" "check-in"' },
+    action: 'Before a trip, set the date filter to the travel week to pull up everything for that trip at once.',
   },
 ];
