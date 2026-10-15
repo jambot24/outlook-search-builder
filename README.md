@@ -3,7 +3,7 @@
 [![CI](https://github.com/jambot24/outlook-search-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/jambot24/outlook-search-builder/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Live site: https://outlook-search-builder.pages.dev**
+**Live site: https://outlooksearchbuilder.kevinspellman.xyz**
 
 A one-page tool that turns "what I am looking for" into search text that works in Outlook. You
 fill in a form, or drop in an email you already have, and it writes the query for each version

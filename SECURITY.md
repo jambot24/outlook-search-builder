@@ -8,7 +8,7 @@ Please do not open a public issue. We aim to reply within five working days.
 
 ## What is in scope
 
-- **The site at https://outlook-search-builder.pages.dev** and its source in this repository.
+- **The site at https://outlooksearchbuilder.kevinspellman.xyz** and its source in this repository.
 - **The community API under `/api/`:** token verification, rate limits and moderation.
 - **Email parsing in the browser:** a crafted `.eml` or `.msg` file that runs script, leaks data,
   or makes the page unusable.

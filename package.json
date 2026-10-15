@@ -18,7 +18,7 @@
     "string_decoder": "^1.3.0",
     "wrangler": "^4.136.1"
   },
-  "homepage": "https://outlook-search-builder.pages.dev",
+  "homepage": "https://outlooksearchbuilder.kevinspellman.xyz",
   "repository": {
     "type": "git",
     "url": "https://github.com/jambot24/outlook-search-builder.git"
